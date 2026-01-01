@@ -430,8 +430,8 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
   CArchiveDatabaseOut db;
   db.Clear();
   
-  // Write compressed data first, track positions
-  UInt64 dataOffset = 0;
+  // Write compressed data first, track successful jobs
+  CRecordVector<UInt32> successJobIndices;
   CRecordVector<UInt64> packSizes;
   CRecordVector<UInt64> unpackSizes;
   
@@ -444,16 +444,15 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     // Write compressed data
     RINOK(WriteStream(outStream, job.CompressedData, (size_t)job.OutSize))
     
+    successJobIndices.Add(i);
     packSizes.Add(job.OutSize);
     unpackSizes.Add(job.InSize);
   }
   
-  // Now build metadata
-  for (unsigned i = 0; i < jobs.Size(); i++)
+  // Now build metadata for successful jobs only
+  for (unsigned idx = 0; idx < successJobIndices.Size(); idx++)
   {
-    const CCompressionJob &job = jobs[i];
-    if (job.Result != S_OK || !job.Completed)
-      continue;
+    const CCompressionJob &job = jobs[successJobIndices[idx]];
     
     CFileItem fileItem;
     fileItem.Size = job.InSize;
@@ -480,7 +479,7 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     coder.NumStreams = 1;
     db.Folders.Add(folder);
     
-    db.PackSizes.Add(packSizes[i]);
+    db.PackSizes.Add(packSizes[idx]);
     
     // CRC calculation: Currently disabled for performance
     // To enable: calculate CRC32 during compression in CompressJob()
@@ -489,7 +488,7 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     db.PackCRCs.Vals.Add(0);
     
     db.NumUnpackStreamsVector.Add(1);
-    db.CoderUnpackSizes.Add(unpackSizes[i]);
+    db.CoderUnpackSizes.Add(unpackSizes[idx]);
   }
   
   CCompressionMethodMode method;
