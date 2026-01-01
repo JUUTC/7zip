@@ -23,7 +23,8 @@ struct CParallelInputItem
   x(OnItemProgress(UInt32 itemIndex, UInt64 inSize, UInt64 outSize)) \
   x(OnItemComplete(UInt32 itemIndex, HRESULT result, UInt64 inSize, UInt64 outSize)) \
   x(OnError(UInt32 itemIndex, HRESULT errorCode, const wchar_t *message)) \
-  x(ShouldCancel())
+  x(ShouldCancel()) \
+  x(GetNextItems(UInt32 currentIndex, UInt32 lookAheadCount, CParallelInputItem *items, UInt32 *itemsReturned))
 
 Z7_IFACE_CONSTR_CODER(IParallelCompressCallback, 0xA1)
 

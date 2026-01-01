@@ -158,6 +158,8 @@ Z7_COM7F_IMF(CParallelCompressor::Code(
 {
   if (!inStream || !outStream)
     return E_INVALIDARG;
+  if (_numThreads <= 1)
+    return CompressSingleStream(inStream, outStream, inSize, progress);
   CParallelInputItem item;
   item.InStream = inStream;
   item.Name = NULL;
@@ -165,6 +167,15 @@ Z7_COM7F_IMF(CParallelCompressor::Code(
   item.Attributes = 0;
   item.UserData = NULL;
   return CompressMultiple(&item, 1, outStream, progress);
+}
+
+HRESULT CParallelCompressor::CompressSingleStream(
+    ISequentialInStream *inStream, ISequentialOutStream *outStream,
+    const UInt64 *inSize, ICompressProgressInfo *progress)
+{
+  CMyComPtr<ICompressCoder> encoder;
+  RINOK(CreateEncoder(&encoder));
+  return encoder->Code(inStream, outStream, inSize, NULL, progress);
 }
 
 Z7_COM7F_IMF(CParallelCompressor::SetCallback(IParallelCompressCallback *callback))
@@ -386,8 +397,9 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
 {
   if (!items || numItems == 0 || !outStream)
     return E_INVALIDARG;
-    
-  // Initialize if needed
+  if (numItems == 1 && _numThreads <= 1)
+    return CompressSingleStream(items[0].InStream, outStream, 
+        items[0].Size > 0 ? &items[0].Size : NULL, progress);
   if (_workers.Size() == 0)
   {
     RINOK(Init());
@@ -414,9 +426,26 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     job.ModTime = items[i].ModificationTime;
     job.UserData = items[i].UserData;
   }
-  
-  // Start workers - they will pull jobs from the queue as they complete
-  for (UInt32 i = 0; i < _workers.Size() && i < numItems; i++)
+  if (_callback)
+  {
+    const UInt32 lookAheadCount = _numThreads * 2;
+    CParallelInputItem lookAheadItems[16];
+    UInt32 itemsReturned = 0;
+    _callback->GetNextItems(0, lookAheadCount < 16 ? lookAheadCount : 16, 
+        lookAheadItems, &itemsReturned);
+    for (UInt32 i = 0; i < itemsReturned; i++)
+    {
+      CCompressionJob &job = _jobs.AddNew();
+      job.ItemIndex = numItems + i;
+      job.InStream = lookAheadItems[i].InStream;
+      job.Name = lookAheadItems[i].Name ? lookAheadItems[i].Name : L"";
+      job.InSize = lookAheadItems[i].Size;
+      job.Attributes = lookAheadItems[i].Attributes;
+      job.ModTime = lookAheadItems[i].ModificationTime;
+      job.UserData = lookAheadItems[i].UserData;
+    }
+  }
+  for (UInt32 i = 0; i < _workers.Size() && i < _jobs.Size(); i++)
   {
     CCompressionJob *job = GetNextJob();
     if (job)

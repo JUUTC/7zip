@@ -37,6 +37,13 @@ typedef void (*ParallelErrorCallback)(
     const wchar_t *message,
     void *userData);
 
+typedef HRESULT (*ParallelLookAheadCallback)(
+    UInt32 currentIndex,
+    UInt32 lookAheadCount,
+    ParallelInputItemC *items,
+    UInt32 *itemsReturned,
+    void *userData);
+
 // Create/destroy parallel compressor
 ParallelCompressorHandle ParallelCompressor_Create();
 void ParallelCompressor_Destroy(ParallelCompressorHandle handle);
@@ -56,6 +63,7 @@ HRESULT ParallelCompressor_SetCallbacks(
     ParallelCompressorHandle handle,
     ParallelProgressCallback progressCallback,
     ParallelErrorCallback errorCallback,
+    ParallelLookAheadCallback lookAheadCallback,
     void *userData);
 
 // Compression

@@ -21,9 +21,11 @@ public:
   
   ParallelProgressCallback _progressCallback;
   ParallelErrorCallback _errorCallback;
+  ParallelLookAheadCallback _lookAheadCallback;
   void *_userData;
   
-  CCallbackWrapper() : _progressCallback(NULL), _errorCallback(NULL), _userData(NULL) {}
+  CCallbackWrapper(): _progressCallback(NULL), _errorCallback(NULL), 
+      _lookAheadCallback(NULL), _userData(NULL) {}
   
   Z7_COM7F_IMF(OnItemStart(UInt32 itemIndex, const wchar_t *name))
   {
@@ -54,6 +56,40 @@ public:
   Z7_COM7F_IMF2(Bool, ShouldCancel())
   {
     return false;
+  }
+  
+  Z7_COM7F_IMF(GetNextItems(UInt32 currentIndex, UInt32 lookAheadCount, 
+      CParallelInputItem *items, UInt32 *itemsReturned))
+  {
+    if (itemsReturned)
+      *itemsReturned = 0;
+    if (!_lookAheadCallback || !items)
+      return S_OK;
+    ParallelInputItemC cItems[16];
+    UInt32 count = 0;
+    HRESULT hr = _lookAheadCallback(currentIndex, lookAheadCount < 16 ? lookAheadCount : 16, 
+        cItems, &count, _userData);
+    if (SUCCEEDED(hr) && count > 0)
+    {
+      for (UInt32 i = 0; i < count; i++)
+      {
+        items[i].InStream = NULL;
+        items[i].Name = cItems[i].Name;
+        items[i].Size = cItems[i].Size;
+        items[i].Attributes = 0;
+        items[i].UserData = cItems[i].UserData;
+        if (cItems[i].Data && cItems[i].DataSize > 0)
+        {
+          CBufInStream *streamSpec = new CBufInStream;
+          CMyComPtr<ISequentialInStream> stream = streamSpec;
+          streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
+          items[i].InStream = stream;
+        }
+      }
+      if (itemsReturned)
+        *itemsReturned = count;
+    }
+    return hr;
   }
 };
 
@@ -139,14 +175,16 @@ HRESULT ParallelCompressor_SetCallbacks(
     ParallelCompressorHandle handle,
     ParallelProgressCallback progressCallback,
     ParallelErrorCallback errorCallback,
+    ParallelLookAheadCallback lookAheadCallback,
     void *userData)
 {
   if (!handle)
     return E_INVALIDARG;
-    
   ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
   wrapper->Callback->_progressCallback = progressCallback;
   wrapper->Callback->_errorCallback = errorCallback;
+  wrapper->Callback->_lookAheadCallback = lookAheadCallback;
+  wrapper->Callback->_userData = userData;
   wrapper->Callback->_userData = userData;
   
   return wrapper->Compressor->SetCallback(wrapper->Callback);

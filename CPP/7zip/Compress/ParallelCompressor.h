@@ -90,6 +90,8 @@ Z7_CLASS_IMP_COM_6(
   DECL_EXTERNAL_CODECS_LOC_VARS
   HRESULT CreateEncoder(ICompressCoder **encoder);
   HRESULT CompressJob(CCompressionJob &job, ICompressCoder *encoder);
+  HRESULT CompressSingleStream(ISequentialInStream *inStream, ISequentialOutStream *outStream,
+      const UInt64 *inSize, ICompressProgressInfo *progress);
   CCompressionJob* GetNextJob();
   void NotifyJobComplete(CCompressionJob *job);
   HRESULT WriteJobToStream(CCompressionJob &job, ISequentialOutStream *outStream);
