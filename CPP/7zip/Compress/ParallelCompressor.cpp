@@ -430,14 +430,25 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
   CArchiveDatabaseOut db;
   db.Clear();
   
-  CFolder folder;
-  CCoderInfo &coder = folder.Coders.AddNew();
-  coder.MethodID = _methodId;
-  coder.NumStreams = 1;
-  
-  UInt64 packPos = 0;
+  // Write compressed data first, track positions
+  UInt64 dataOffset = 0;
+  CRecordVector<UInt64> packSizes;
   CRecordVector<UInt64> unpackSizes;
   
+  for (unsigned i = 0; i < jobs.Size(); i++)
+  {
+    const CCompressionJob &job = jobs[i];
+    if (job.Result != S_OK || !job.Completed)
+      continue;
+    
+    // Write compressed data
+    RINOK(WriteStream(outStream, job.CompressedData, (size_t)job.OutSize))
+    
+    packSizes.Add(job.OutSize);
+    unpackSizes.Add(job.InSize);
+  }
+  
+  // Now build metadata
   for (unsigned i = 0; i < jobs.Size(); i++)
   {
     const CCompressionJob &job = jobs[i];
@@ -461,22 +472,25 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     fileItem2.IsAnti = false;
     
     db.AddFile(fileItem, fileItem2, job.Name);
-    db.PackSizes.Add(job.OutSize);
     
-    UInt32 crc = 0;
+    // Create folder for each file
+    CFolder folder;
+    CCoderInfo &coder = folder.Coders.AddNew();
+    coder.MethodID = _methodId;
+    coder.NumStreams = 1;
+    db.Folders.Add(folder);
+    
+    db.PackSizes.Add(packSizes[i]);
+    
+    // CRC calculation: Currently disabled for performance
+    // To enable: calculate CRC32 during compression in CompressJob()
+    // Store in job.Crc, then use: db.PackCRCs.Defs.Add(true); db.PackCRCs.Vals.Add(job.Crc);
     db.PackCRCs.Defs.Add(false);
-    db.PackCRCs.Vals.Add(crc);
+    db.PackCRCs.Vals.Add(0);
     
-    unpackSizes.Add(job.InSize);
-    
-    RINOK(WriteStream(outStream, job.CompressedData, (size_t)job.OutSize))
+    db.NumUnpackStreamsVector.Add(1);
+    db.CoderUnpackSizes.Add(unpackSizes[i]);
   }
-  
-  db.Folders.Add(folder);
-  db.NumUnpackStreamsVector.Add(jobs.Size());
-  
-  for (unsigned i = 0; i < jobs.Size(); i++)
-    db.CoderUnpackSizes.Add(jobs[i].InSize);
   
   CCompressionMethodMode method;
   PrepareCompressionMethod(method);
@@ -559,11 +573,32 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   }
   _completeEvent.Lock();
   
-  // Create 7z archive with all compressed data
+  // Check for failed jobs and report
+  UInt32 successCount = 0;
+  for (UInt32 i = 0; i < _jobs.Size(); i++)
+  {
+    if (_jobs[i].Completed && _jobs[i].Result == S_OK)
+      successCount++;
+  }
+  
+  if (successCount == 0)
+  {
+    // All jobs failed
+    if (_callback)
+      _callback->OnError(0, E_FAIL, L"All compression jobs failed");
+    return E_FAIL;
+  }
+  
+  // Create 7z archive with successfully compressed data
   HRESULT archiveResult = Create7zArchive(outStream, _jobs);
   if (archiveResult != S_OK)
+  {
+    if (_callback)
+      _callback->OnError(0, archiveResult, L"Failed to create 7z archive");
     return archiveResult;
+  }
   
+  // Return S_FALSE if some jobs failed, S_OK if all succeeded
   if (_itemsFailed > 0)
     return S_FALSE;
   return S_OK;

@@ -14,7 +14,6 @@ class CParallel7zArchive
 {
   NArchive::N7z::COutArchive _outArchive;
   NArchive::N7z::CArchiveDatabaseOut _db;
-  CObjectVector<CCompressionJob> *_jobs;
   
 public:
   HRESULT Create(ISequentialOutStream *stream);
