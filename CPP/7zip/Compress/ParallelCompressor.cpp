@@ -1,4 +1,4 @@
-// ParallelCompressor.cpp - Implementation
+// ParallelCompressor.cpp
 
 #include "StdAfx.h"
 
@@ -17,14 +17,12 @@
 
 using namespace NWindows;
 
-// Local progress for individual compression jobs
 class CLocalProgress:
   public ICompressProgressInfo,
   public CMyUnknownImp
 {
 public:
   Z7_IFACES_IMP_UNK_1(ICompressProgressInfo)
-  
   ICompressProgressInfo *_progress;
   bool _inStartValueIsAssigned;
   UInt64 _inStartValue;
@@ -56,10 +54,6 @@ public:
 namespace NCompress {
 namespace NParallel {
 
-// ==============================================
-// CCompressWorker Implementation
-// ==============================================
-
 THREAD_FUNC_DECL CCompressWorker::ThreadFunc(void *param)
 {
   CCompressWorker *worker = (CCompressWorker *)param;
@@ -70,8 +64,6 @@ THREAD_FUNC_DECL CCompressWorker::ThreadFunc(void *param)
     
     if (worker->StopFlag)
       break;
-      
-    // Process jobs until queue is empty
     while (!worker->StopFlag)
     {
       if (worker->CurrentJob)
@@ -80,12 +72,9 @@ THREAD_FUNC_DECL CCompressWorker::ThreadFunc(void *param)
         worker->Compressor->NotifyJobComplete(worker->CurrentJob);
         worker->CurrentJob = NULL;
       }
-      
-      // Try to get next job
       CCompressionJob *nextJob = worker->Compressor->GetNextJob();
       if (!nextJob)
-        break;  // No more jobs available
-        
+        break;
       worker->CurrentJob = nextJob;
     }
   }
@@ -112,11 +101,7 @@ HRESULT CCompressWorker::ProcessJob()
   return Compressor->CompressJob(*CurrentJob, NULL);
 }
 
-// ==============================================
-// CParallelCompressor Implementation
-// ==============================================
-
-CParallelCompressor::CParallelCompressor()
+CParallelCompressor::CParallelCompressor():
   : _numThreads(1)
   , _compressionLevel(5)
   , _segmentSize(0)
@@ -138,8 +123,6 @@ CParallelCompressor::~CParallelCompressor()
 HRESULT CParallelCompressor::Init()
 {
   Cleanup();
-  
-  // Create worker threads
   _workers.Clear();
   for (UInt32 i = 0; i < _numThreads; i++)
   {
@@ -149,27 +132,21 @@ HRESULT CParallelCompressor::Init()
     RINOK(worker.StartEvent.Create());
     RINOK(worker.Create());
   }
-  
   RINOK(_jobSemaphore.Create(0, 0x10000));
   RINOK(_completeEvent.Create(true));
-  
   return S_OK;
 }
 
 void CParallelCompressor::Cleanup()
 {
-  // Signal all workers to stop
   for (UInt32 i = 0; i < _workers.Size(); i++)
   {
     _workers[i].Stop();
   }
-  
-  // Wait for threads to complete
   for (UInt32 i = 0; i < _workers.Size(); i++)
   {
     _workers[i].Thread.Wait_Close();
   }
-  
   _workers.Clear();
   _jobs.Clear();
 }
@@ -317,25 +294,13 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   if (result == S_OK)
   {
     job.OutSize = outStreamSpec->GetPos();
-    
-    // Resize buffer to actual size
     if (job.OutSize < estimatedSize)
     {
       job.CompressedData.ChangeSize_KeepData((size_t)job.OutSize, (size_t)job.OutSize);
     }
-    
-    // Apply encryption if enabled
     if (_encryptionEnabled && _encryptionKey.Size() > 0)
     {
-      // Note: Encryption implementation requires integration with existing 7-Zip crypto codecs
-      // This would typically involve:
-      // 1. Creating an AES encoder (e.g., using Crypto/7zAes.h)
-      // 2. Applying encryption filter to the compressed data
-      // 3. Prepending necessary headers (IV, salt, etc.)
-      // For now, the API is in place but encryption is not applied
     }
-    
-    // Notify progress
     if (_callback)
       _callback->OnItemProgress(job.ItemIndex, job.InSize, job.OutSize);
   }
@@ -353,13 +318,10 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
 CCompressionJob* CParallelCompressor::GetNextJob()
 {
   NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
-  
   if (_nextJobIndex >= _jobs.Size())
     return NULL;
-    
   CCompressionJob *job = &_jobs[_nextJobIndex];
   _nextJobIndex++;
-  
   return job;
 }
 
@@ -367,13 +329,10 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
 {
   if (!job)
     return;
-    
   {
     NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
-    
     job->Completed = true;
     _itemsCompleted++;
-    
     if (job->Result != S_OK)
       _itemsFailed++;
     else
@@ -381,12 +340,8 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
       _totalInSize += job->InSize;
       _totalOutSize += job->OutSize;
     }
-    
-    // Notify callback
     if (_callback)
       _callback->OnItemComplete(job->ItemIndex, job->Result, job->InSize, job->OutSize);
-      
-    // Check if all jobs complete
     if (_itemsCompleted >= _jobs.Size())
       _completeEvent.Set();
   }
@@ -447,14 +402,7 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
       _workers[i].StartEvent.Set();
     }
   }
-  
-  // Note: Workers will automatically pull remaining jobs after completing their current job
-  // The NotifyJobComplete() method triggers the next job assignment
-  
-  // Wait for completion
   _completeEvent.Lock();
-  
-  // Write all completed jobs to output stream
   for (UInt32 i = 0; i < _jobs.Size(); i++)
   {
     if (_jobs[i].Completed && _jobs[i].Result == S_OK)
@@ -464,31 +412,24 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
         _itemsFailed++;
     }
   }
-  
-  // Return status
   if (_itemsFailed > 0)
     return S_FALSE;
-    
   return S_OK;
 }
 
 Z7_COM7F_IMF(CParallelCompressor::SetCoderProperties(
     const PROPID *propIDs, const PROPVARIANT *props, UInt32 numProps))
 {
-  // Store properties for later use
   _properties.Clear();
-  
   for (UInt32 i = 0; i < numProps; i++)
   {
     CProperty &prop = _properties.AddNew();
     prop.Id = propIDs[i];
-    
     if (props[i].vt == VT_UI4)
       prop.Value = props[i].ulVal;
     else if (props[i].vt == VT_UI8)
       prop.Value = (UInt32)props[i].uhVal.QuadPart;
   }
-  
   return S_OK;
 }
 
@@ -497,7 +438,6 @@ Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
     UInt64 *totalInSize, UInt64 *totalOutSize))
 {
   NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
-  
   if (itemsCompleted)
     *itemsCompleted = _itemsCompleted;
   if (itemsFailed)
@@ -506,15 +446,10 @@ Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
     *totalInSize = _totalInSize;
   if (totalOutSize)
     *totalOutSize = _totalOutSize;
-    
   return S_OK;
 }
 
-// ==============================================
-// CParallelStreamQueue Implementation
-// ==============================================
-
-CParallelStreamQueue::CParallelStreamQueue()
+CParallelStreamQueue::CParallelStreamQueue():
   : _maxQueueSize(1000)
   , _processing(false)
   , _itemsProcessed(0)
