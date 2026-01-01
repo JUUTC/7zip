@@ -14,6 +14,9 @@
 #include "ICoder.h"
 #include "IPassword.h"
 #include "../Common/CreateCoder.h"
+#include "../Archive/7z/7zOut.h"
+#include "../Archive/7z/7zItem.h"
+#include "../Archive/7z/7zCompressionMode.h"
 
 namespace NCompress {
 namespace NParallel {
@@ -95,6 +98,9 @@ Z7_CLASS_IMP_COM_6(
   CCompressionJob* GetNextJob();
   void NotifyJobComplete(CCompressionJob *job);
   HRESULT WriteJobToStream(CCompressionJob &job, ISequentialOutStream *outStream);
+  HRESULT Create7zArchive(ISequentialOutStream *outStream,
+      const CObjectVector<CCompressionJob> &jobs);
+  void PrepareCompressionMethod(NArchive::N7z::CCompressionMethodMode &method);
 public:
   CParallelCompressor();
   ~CParallelCompressor();

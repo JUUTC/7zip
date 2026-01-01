@@ -391,6 +391,109 @@ HRESULT CParallelCompressor::WriteJobToStream(CCompressionJob &job, ISequentialO
   return WriteStream(outStream, job.CompressedData, (size_t)job.OutSize, &processed);
 }
 
+void CParallelCompressor::PrepareCompressionMethod(NArchive::N7z::CCompressionMethodMode &method)
+{
+  method.Bonds.Clear();
+  method.Methods.Clear();
+  
+  NArchive::N7z::CMethodFull &methodFull = method.Methods.AddNew();
+  methodFull.Id = _methodId;
+  methodFull.NumStreams = 1;
+  
+  PROPID propIDs[2] = { NCoderPropID::kLevel, NCoderPropID::kNumThreads };
+  PROPVARIANT propValues[2];
+  
+  propValues[0].vt = VT_UI4;
+  propValues[0].ulVal = _compressionLevel;
+  
+  propValues[1].vt = VT_UI4;
+  propValues[1].ulVal = 1;
+  
+  for (UInt32 i = 0; i < 2; i++)
+  {
+    NArchive::N7z::CProp &prop = methodFull.Props.AddNew();
+    prop.Id = propIDs[i];
+    prop.Value = propValues[i];
+  }
+  
+  method.NumThreads = _numThreads;
+}
+
+HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
+    const CObjectVector<CCompressionJob> &jobs)
+{
+  using namespace NArchive::N7z;
+  
+  COutArchive outArchive;
+  RINOK(outArchive.Create_and_WriteStartPrefix(outStream))
+  
+  CArchiveDatabaseOut db;
+  db.Clear();
+  
+  CFolder folder;
+  CCoderInfo &coder = folder.Coders.AddNew();
+  coder.MethodID = _methodId;
+  coder.NumStreams = 1;
+  
+  UInt64 packPos = 0;
+  CRecordVector<UInt64> unpackSizes;
+  
+  for (unsigned i = 0; i < jobs.Size(); i++)
+  {
+    const CCompressionJob &job = jobs[i];
+    if (job.Result != S_OK || !job.Completed)
+      continue;
+    
+    CFileItem fileItem;
+    fileItem.Size = job.InSize;
+    fileItem.HasStream = (job.InSize > 0);
+    fileItem.IsDir = false;
+    fileItem.CrcDefined = false;
+    
+    CFileItem2 fileItem2;
+    fileItem2.MTime = job.ModTime.dwLowDateTime | ((UInt64)job.ModTime.dwHighDateTime << 32);
+    fileItem2.MTimeDefined = true;
+    fileItem2.AttribDefined = (job.Attributes != 0);
+    fileItem2.Attrib = job.Attributes;
+    fileItem2.CTimeDefined = false;
+    fileItem2.ATimeDefined = false;
+    fileItem2.StartPosDefined = false;
+    fileItem2.IsAnti = false;
+    
+    db.AddFile(fileItem, fileItem2, job.Name);
+    db.PackSizes.Add(job.OutSize);
+    
+    UInt32 crc = 0;
+    db.PackCRCs.Defs.Add(false);
+    db.PackCRCs.Vals.Add(crc);
+    
+    unpackSizes.Add(job.InSize);
+    
+    RINOK(WriteStream(outStream, job.CompressedData, (size_t)job.OutSize))
+  }
+  
+  db.Folders.Add(folder);
+  db.NumUnpackStreamsVector.Add(jobs.Size());
+  
+  for (unsigned i = 0; i < jobs.Size(); i++)
+    db.CoderUnpackSizes.Add(jobs[i].InSize);
+  
+  CCompressionMethodMode method;
+  PrepareCompressionMethod(method);
+  
+  CHeaderOptions headerOptions;
+  headerOptions.CompressMainHeader = true;
+  
+  RINOK(outArchive.WriteDatabase(
+      EXTERNAL_CODECS_LOC_VARS
+      db,
+      &method,
+      headerOptions))
+  
+  outArchive.Close();
+  return S_OK;
+}
+
 Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     CParallelInputItem *items, UInt32 numItems,
     ISequentialOutStream *outStream, ICompressProgressInfo *progress))
@@ -455,15 +558,12 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     }
   }
   _completeEvent.Lock();
-  for (UInt32 i = 0; i < _jobs.Size(); i++)
-  {
-    if (_jobs[i].Completed && _jobs[i].Result == S_OK)
-    {
-      HRESULT res = WriteJobToStream(_jobs[i], outStream);
-      if (res != S_OK)
-        _itemsFailed++;
-    }
-  }
+  
+  // Create 7z archive with all compressed data
+  HRESULT archiveResult = Create7zArchive(outStream, _jobs);
+  if (archiveResult != S_OK)
+    return archiveResult;
+  
   if (_itemsFailed > 0)
     return S_FALSE;
   return S_OK;
