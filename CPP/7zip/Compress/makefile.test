@@ -1,10 +1,24 @@
 PROG = ParallelCompressorTest
+PROG_VALIDATION = ParallelCompressorValidation
+PROG_E2E = ParallelE2ETest
 CXX = g++
 CXXFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DNDEBUG
 LDFLAGS = -lpthread
 
 OBJS = \
   ParallelCompressorTest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_VALIDATION = \
+  ParallelCompressorValidation.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_E2E = \
+  ParallelE2ETest.o \
   ParallelCompressor.o \
   ParallelCompressAPI.o \
   ParallelCompressorRegister.o \
@@ -46,10 +60,16 @@ C_OBJS = \
   ../../../C/Lzma2Enc.o \
   ../../../C/Threads.o \
 
-all: $(PROG)
+all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E)
 
 $(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG) $^ $(LDFLAGS)
+
+$(PROG_VALIDATION): $(OBJS_VALIDATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_VALIDATION) $^ $(LDFLAGS)
+
+$(PROG_E2E): $(OBJS_E2E) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_E2E) $^ $(LDFLAGS)
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
@@ -58,9 +78,12 @@ $(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAf
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(PROG) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+	rm -f test_*.7z test_file*.txt
 
-test: $(PROG)
+test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E)
 	./$(PROG)
+	./$(PROG_VALIDATION)
+	./$(PROG_E2E)
 
 .PHONY: all clean test
