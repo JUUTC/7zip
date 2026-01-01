@@ -37,7 +37,9 @@ Z7_IFACE_CONSTR_CODER(IParallelCompressCallback, 0xA1)
   x(SetEncryption(const Byte *key, UInt32 keySize, const Byte *iv, UInt32 ivSize)) \
   x(SetSegmentSize(UInt64 segmentSize)) \
   x(CompressMultiple(CParallelInputItem *items, UInt32 numItems, \
-      ISequentialOutStream *outStream, ICompressProgressInfo *progress))
+      ISequentialOutStream *outStream, ICompressProgressInfo *progress)) \
+  x(GetStatistics(UInt32 *itemsCompleted, UInt32 *itemsFailed, \
+      UInt64 *totalInSize, UInt64 *totalOutSize))
 
 Z7_IFACE_CONSTR_CODER(IParallelCompressor, 0xA2)
   /* 

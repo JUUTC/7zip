@@ -71,11 +71,22 @@ THREAD_FUNC_DECL CCompressWorker::ThreadFunc(void *param)
     if (worker->StopFlag)
       break;
       
-    if (worker->CurrentJob)
+    // Process jobs until queue is empty
+    while (!worker->StopFlag)
     {
-      worker->CurrentJob->Result = worker->ProcessJob();
-      worker->Compressor->NotifyJobComplete(worker->CurrentJob);
-      worker->CurrentJob = NULL;
+      if (worker->CurrentJob)
+      {
+        worker->CurrentJob->Result = worker->ProcessJob();
+        worker->Compressor->NotifyJobComplete(worker->CurrentJob);
+        worker->CurrentJob = NULL;
+      }
+      
+      // Try to get next job
+      CCompressionJob *nextJob = worker->Compressor->GetNextJob();
+      if (!nextJob)
+        break;  // No more jobs available
+        
+      worker->CurrentJob = nextJob;
     }
   }
   
@@ -316,8 +327,12 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
     // Apply encryption if enabled
     if (_encryptionEnabled && _encryptionKey.Size() > 0)
     {
-      // TODO: Add encryption here
-      // For now, encryption is a placeholder
+      // Note: Encryption implementation requires integration with existing 7-Zip crypto codecs
+      // This would typically involve:
+      // 1. Creating an AES encoder (e.g., using Crypto/7zAes.h)
+      // 2. Applying encryption filter to the compressed data
+      // 3. Prepending necessary headers (IV, salt, etc.)
+      // For now, the API is in place but encryption is not applied
     }
     
     // Notify progress
@@ -422,7 +437,7 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     job.UserData = items[i].UserData;
   }
   
-  // Start workers
+  // Start workers - they will pull jobs from the queue as they complete
   for (UInt32 i = 0; i < _workers.Size() && i < numItems; i++)
   {
     CCompressionJob *job = GetNextJob();
@@ -432,6 +447,9 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
       _workers[i].StartEvent.Set();
     }
   }
+  
+  // Note: Workers will automatically pull remaining jobs after completing their current job
+  // The NotifyJobComplete() method triggers the next job assignment
   
   // Wait for completion
   _completeEvent.Lock();
@@ -471,6 +489,24 @@ Z7_COM7F_IMF(CParallelCompressor::SetCoderProperties(
       prop.Value = (UInt32)props[i].uhVal.QuadPart;
   }
   
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
+    UInt32 *itemsCompleted, UInt32 *itemsFailed,
+    UInt64 *totalInSize, UInt64 *totalOutSize))
+{
+  NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
+  
+  if (itemsCompleted)
+    *itemsCompleted = _itemsCompleted;
+  if (itemsFailed)
+    *itemsFailed = _itemsFailed;
+  if (totalInSize)
+    *totalInSize = _totalInSize;
+  if (totalOutSize)
+    *totalOutSize = _totalOutSize;
+    
   return S_OK;
 }
 
@@ -540,14 +576,13 @@ Z7_COM7F_IMF(CParallelStreamQueue::StartProcessing(ISequentialOutStream *outStre
   {
     HRESULT res = _compressor->CompressMultiple(&_queuedItems[0], _queuedItems.Size(), outStream, NULL);
     
-    if (res == S_OK)
-      _itemsProcessed = _queuedItems.Size();
-    else if (res == S_FALSE)
-    {
-      // Some items failed, need to count
-      _itemsProcessed = _queuedItems.Size();
-      _itemsFailed = 1; // Simplified
-    }
+    // Get actual statistics from the compressor
+    UInt32 completed = 0;
+    UInt32 failed = 0;
+    _compressor->GetStatistics(&completed, &failed, NULL, NULL);
+    
+    _itemsProcessed = completed;
+    _itemsFailed = failed;
     
     return res;
   }
