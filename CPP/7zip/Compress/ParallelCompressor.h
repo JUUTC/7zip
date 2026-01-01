@@ -59,10 +59,14 @@ public:
   HRESULT ProcessJob();
 };
 
-Z7_CLASS_IMP_COM_2(
+Z7_CLASS_IMP_COM_6(
   CParallelCompressor,
   IParallelCompressor,
-  ICompressSetCoderProperties
+  ICompressCoder,
+  ICompressSetCoderProperties,
+  ICompressWriteCoderProperties,
+  ICompressSetCoderPropertiesOpt,
+  ICompressGetInStreamProcessedSize
 )
   UInt32 _numThreads;
   UInt32 _compressionLevel;

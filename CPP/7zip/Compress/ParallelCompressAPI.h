@@ -44,6 +44,7 @@ void ParallelCompressor_Destroy(ParallelCompressorHandle handle);
 // Configuration
 HRESULT ParallelCompressor_SetNumThreads(ParallelCompressorHandle handle, UInt32 numThreads);
 HRESULT ParallelCompressor_SetCompressionLevel(ParallelCompressorHandle handle, UInt32 level);
+HRESULT ParallelCompressor_SetCompressionMethod(ParallelCompressorHandle handle, UInt64 methodId);
 HRESULT ParallelCompressor_SetEncryption(
     ParallelCompressorHandle handle,
     const Byte *key,

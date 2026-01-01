@@ -151,6 +151,22 @@ void CParallelCompressor::Cleanup()
   _jobs.Clear();
 }
 
+Z7_COM7F_IMF(CParallelCompressor::Code(
+    ISequentialInStream *inStream, ISequentialOutStream *outStream,
+    const UInt64 *inSize, const UInt64 *outSize,
+    ICompressProgressInfo *progress))
+{
+  if (!inStream || !outStream)
+    return E_INVALIDARG;
+  CParallelInputItem item;
+  item.InStream = inStream;
+  item.Name = NULL;
+  item.Size = inSize ? *inSize : 0;
+  item.Attributes = 0;
+  item.UserData = NULL;
+  return CompressMultiple(&item, 1, outStream, progress);
+}
+
 Z7_COM7F_IMF(CParallelCompressor::SetCallback(IParallelCompressCallback *callback))
 {
   _callback = callback;
@@ -172,6 +188,13 @@ Z7_COM7F_IMF(CParallelCompressor::SetCompressionLevel(UInt32 level))
   if (level > 9)
     level = 9;
   _compressionLevel = level;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetCompressionMethod(const CMethodId *methodId))
+{
+  if (methodId)
+    _methodId = *methodId;
   return S_OK;
 }
 
@@ -430,6 +453,45 @@ Z7_COM7F_IMF(CParallelCompressor::SetCoderProperties(
     else if (props[i].vt == VT_UI8)
       prop.Value = (UInt32)props[i].uhVal.QuadPart;
   }
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::WriteCoderProperties(ISequentialOutStream *outStream))
+{
+  if (!outStream)
+    return E_POINTER;
+  CMyComPtr<ICompressCoder> encoder;
+  RINOK(CreateEncoder(&encoder));
+  CMyComPtr<ICompressWriteCoderProperties> writeProps;
+  encoder.QueryInterface(IID_ICompressWriteCoderProperties, &writeProps);
+  if (writeProps)
+    return writeProps->WriteCoderProperties(outStream);
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetCoderPropertiesOpt(
+    const PROPID *propIDs, const PROPVARIANT *props, UInt32 numProps))
+{
+  for (UInt32 i = 0; i < numProps; i++)
+  {
+    PROPID propID = propIDs[i];
+    const PROPVARIANT &prop = props[i];
+    if (propID == NCoderPropID::kExpectedDataSize)
+    {
+      if (prop.vt == VT_UI8)
+      {
+      }
+    }
+  }
+  return SetCoderProperties(propIDs, props, numProps);
+}
+
+Z7_COM7F_IMF(CParallelCompressor::GetInStreamProcessedSize(UInt64 *value))
+{
+  if (!value)
+    return E_POINTER;
+  NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
+  *value = _totalInSize;
   return S_OK;
 }
 

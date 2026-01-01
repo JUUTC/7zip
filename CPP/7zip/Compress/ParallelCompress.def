@@ -4,6 +4,7 @@ EXPORTS
     ParallelCompressor_Destroy
     ParallelCompressor_SetNumThreads
     ParallelCompressor_SetCompressionLevel
+    ParallelCompressor_SetCompressionMethod
     ParallelCompressor_SetEncryption
     ParallelCompressor_SetSegmentSize
     ParallelCompressor_SetCallbacks

@@ -104,6 +104,16 @@ HRESULT ParallelCompressor_SetCompressionLevel(ParallelCompressorHandle handle, 
   return wrapper->Compressor->SetCompressionLevel(level);
 }
 
+HRESULT ParallelCompressor_SetCompressionMethod(ParallelCompressorHandle handle, UInt64 methodId)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  CMethodId mid;
+  mid.Id = methodId;
+  return wrapper->Compressor->SetCompressionMethod(&mid);
+}
+
 HRESULT ParallelCompressor_SetEncryption(
     ParallelCompressorHandle handle,
     const Byte *key,

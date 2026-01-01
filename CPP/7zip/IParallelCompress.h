@@ -31,6 +31,7 @@ Z7_IFACE_CONSTR_CODER(IParallelCompressCallback, 0xA1)
   x(SetCallback(IParallelCompressCallback *callback)) \
   x(SetNumThreads(UInt32 numThreads)) \
   x(SetCompressionLevel(UInt32 level)) \
+  x(SetCompressionMethod(const CMethodId *methodId)) \
   x(SetEncryption(const Byte *key, UInt32 keySize, const Byte *iv, UInt32 ivSize)) \
   x(SetSegmentSize(UInt64 segmentSize)) \
   x(CompressMultiple(CParallelInputItem *items, UInt32 numItems, \
