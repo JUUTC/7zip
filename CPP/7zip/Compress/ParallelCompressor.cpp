@@ -4,6 +4,8 @@
 
 #include "ParallelCompressor.h"
 
+#include "../../../C/Threads.h"
+
 #include "../../Common/IntToString.h"
 #include "../../Common/StringConvert.h"
 
@@ -51,48 +53,6 @@ public:
   }
 };
 
-// Memory output stream that writes to a buffer
-class CBufPtrSeqOutStream:
-  public ISequentialOutStream,
-  public CMyUnknownImp
-{
-  Byte *_buffer;
-  size_t _size;
-  size_t _pos;
-public:
-  Z7_IFACES_IMP_UNK_1(ISequentialOutStream)
-  
-  void Init(Byte *buffer, size_t size)
-  {
-    _buffer = buffer;
-    _size = size;
-    _pos = 0;
-  }
-  
-  size_t GetPos() const { return _pos; }
-  
-  Z7_COM7F_IMF(Write(const void *data, UInt32 size, UInt32 *processedSize))
-  {
-    if (processedSize)
-      *processedSize = 0;
-    if (size == 0)
-      return S_OK;
-    if (_pos >= _size)
-      return E_FAIL;
-      
-    size_t avail = _size - _pos;
-    if (size > avail)
-      size = (UInt32)avail;
-      
-    memcpy(_buffer + _pos, data, size);
-    _pos += size;
-    
-    if (processedSize)
-      *processedSize = size;
-    return S_OK;
-  }
-};
-
 namespace NCompress {
 namespace NParallel {
 
@@ -119,7 +79,7 @@ THREAD_FUNC_DECL CCompressWorker::ThreadFunc(void *param)
     }
   }
   
-  return 0;
+  return THREAD_FUNC_RET_ZERO;
 }
 
 HRESULT CCompressWorker::Create()
@@ -320,7 +280,7 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   if (_callback)
     _callback->OnItemStart(job.ItemIndex, job.Name);
     
-  // Create memory output stream
+  // Create memory output stream - use the existing class
   CBufPtrSeqOutStream *outStreamSpec = new CBufPtrSeqOutStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   

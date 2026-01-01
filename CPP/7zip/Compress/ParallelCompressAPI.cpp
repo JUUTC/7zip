@@ -263,7 +263,17 @@ HRESULT ParallelCompressor_CompressMultipleToMemory(
   if (result == S_OK || result == S_FALSE)
   {
     *outputSize = outStreamSpec->GetSize();
-    outStreamSpec->CopyToBuffer((Byte**)outputBuffer, outputSize);
+    // Allocate buffer and copy data
+    *outputBuffer = malloc(*outputSize);
+    if (*outputBuffer)
+    {
+      memcpy(*outputBuffer, outStreamSpec->GetBuffer(), *outputSize);
+    }
+    else
+    {
+      *outputSize = 0;
+      return E_OUTOFMEMORY;
+    }
   }
   
   return result;
