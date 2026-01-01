@@ -1,0 +1,66 @@
+PROG = ParallelCompressorTest
+CXX = g++
+CXXFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DNDEBUG
+LDFLAGS = -lpthread
+
+OBJS = \
+  ParallelCompressorTest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+COMMON_OBJS = \
+  ../../Common/MyString.o \
+  ../../Common/IntToString.o \
+  ../../Common/StringConvert.o \
+  ../../Common/MyVector.o \
+  ../../Common/MyWindows.o \
+
+WINDOWS_OBJS = \
+  ../../Windows/FileDir.o \
+  ../../Windows/FileFind.o \
+  ../../Windows/FileIO.o \
+  ../../Windows/FileName.o \
+  ../../Windows/PropVariant.o \
+  ../../Windows/Synchronization.o \
+  ../../Windows/System.o \
+  ../../Windows/Thread.o \
+
+COMPRESS_OBJS = \
+  ../Common/InBuffer.o \
+  ../Common/OutBuffer.o \
+  ../Common/StreamUtils.o \
+  ../Common/FileStreams.o \
+  ../Common/StreamObjects.o \
+  ../Common/LimitedStreams.o \
+  ../Common/MethodProps.o \
+  ../Common/RegisterCodec.o \
+  ../Common/CreateCoder.o \
+  LzmaEncoder.o \
+  Lzma2Encoder.o \
+
+C_OBJS = \
+  ../../../C/Alloc.o \
+  ../../../C/LzFind.o \
+  ../../../C/LzmaEnc.o \
+  ../../../C/Lzma2Enc.o \
+  ../../../C/Threads.o \
+
+all: $(PROG)
+
+$(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG) $^ $(LDFLAGS)
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+clean:
+	rm -f $(PROG) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+
+test: $(PROG)
+	./$(PROG)
+
+.PHONY: all clean test
