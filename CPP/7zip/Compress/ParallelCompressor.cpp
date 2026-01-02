@@ -18,11 +18,21 @@
 #include "../Common/FilterCoder.h"
 #include "../Common/MultiOutStream.h"
 
+#include <stdint.h>   // For UINT64_MAX and SIZE_MAX
+
 #ifndef E_POINTER
 #define E_POINTER ((HRESULT)0x80004003L)
 #endif
 
+// Fallback for SIZE_MAX if not provided by standard headers
+#ifndef SIZE_MAX
+#define SIZE_MAX ((size_t)-1)
+#endif
+
 using namespace NWindows;
+
+// Constants for solid mode compression limits
+static const UInt64 kMaxSolidSizeGB = (UInt64)4 * 1024 * 1024 * 1024;  // 4 GB limit
 
 class CLocalProgress:
   public ICompressProgressInfo,
@@ -403,6 +413,10 @@ HRESULT CParallelCompressor::CreateEncoder(ICompressCoder **encoder)
 
 HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *encoderParam)
 {
+  // Validate job has valid input stream
+  if (!job.InStream)
+    return E_INVALIDARG;
+  
   CMyComPtr<ICompressCoder> encoder;
   
   if (encoderParam)
@@ -587,6 +601,12 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
 {
   using namespace NArchive::N7z;
   
+  if (!outStream)
+    return E_POINTER;
+  
+  if (jobs.Size() == 0)
+    return E_INVALIDARG;
+  
   COutArchive outArchive;
   RINOK(outArchive.Create_and_WriteStartPrefix(outStream))
   
@@ -604,6 +624,10 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     if (job.Result != S_OK || !job.Completed)
       continue;
     
+    // Validate job data before writing
+    if (job.OutSize > 0 && job.CompressedData.Size() == 0)
+      continue;  // Skip invalid job
+    
     // Write compressed data
     RINOK(WriteStream(outStream, job.CompressedData, (size_t)job.OutSize))
     
@@ -611,6 +635,10 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     packSizes.Add(job.OutSize);
     unpackSizes.Add(job.InSize);
   }
+  
+  // Ensure we have at least one successful job
+  if (successJobIndices.Size() == 0)
+    return E_FAIL;  // No successful jobs to archive
   
   // Now build metadata for successful jobs only
   for (unsigned idx = 0; idx < successJobIndices.Size(); idx++)
@@ -706,16 +734,23 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   CArchiveDatabaseOut db;
   db.Clear();
   
-  // Calculate total uncompressed size
+  // Calculate total uncompressed size with overflow protection
   UInt64 totalUnpackSize = 0;
   for (UInt32 i = 0; i < numItems; i++)
   {
+    // Check for overflow before addition
+    if (totalUnpackSize > UINT64_MAX - items[i].Size)
+    {
+      return E_INVALIDARG;  // Size overflow
+    }
     totalUnpackSize += items[i].Size;
   }
   
   // Validate size to prevent excessive memory allocation
-  const UInt64 kMaxSolidSize = (UInt64)4 * 1024 * 1024 * 1024;  // 4 GB limit
-  if (totalUnpackSize > kMaxSolidSize)
+  // Use SIZE_MAX to ensure we can actually allocate this much memory
+  const UInt64 kActualMaxSolidSize = (SIZE_MAX < kMaxSolidSizeGB) 
+      ? SIZE_MAX : kMaxSolidSizeGB;
+  if (totalUnpackSize > kActualMaxSolidSize)
   {
     return E_INVALIDARG;  // Size too large for solid compression
   }
@@ -723,6 +758,11 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   // Create concatenated input stream for solid compression
   // We'll use a memory buffer to concatenate all input streams
   CByteBuffer solidBuffer;
+  // Additional safety check before cast to size_t
+  if (totalUnpackSize > SIZE_MAX)
+  {
+    return E_INVALIDARG;  // Cannot allocate this much memory
+  }
   solidBuffer.Alloc((size_t)totalUnpackSize);
   
   UInt64 offset = 0;
@@ -738,13 +778,25 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   
   for (UInt32 i = 0; i < numItems; i++)
   {
+    // Validate input stream
+    if (!items[i].InStream)
+      return E_INVALIDARG;
+    
     UInt32 crc = CRC_INIT_VAL;
     UInt64 remaining = items[i].Size;
     UInt64 itemOffset = offset;
     
     while (remaining > 0)
     {
+      // Ensure we don't overflow the buffer
+      if (offset >= totalUnpackSize)
+        return E_FAIL;  // Buffer overflow prevented
+      
       UInt32 toRead = (UInt32)(remaining > kSolidReadBufferSize ? kSolidReadBufferSize : remaining);
+      // Ensure read won't overflow buffer
+      if (offset + toRead > totalUnpackSize)
+        toRead = (UInt32)(totalUnpackSize - offset);
+      
       UInt32 processed = 0;
       RINOK(items[i].InStream->Read(solidBuffer + offset, toRead, &processed))
       if (processed == 0)
@@ -874,6 +926,11 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     ISequentialOutStream *outStream, ICompressProgressInfo *progress))
 {
   if (!items || numItems == 0 || !outStream)
+    return E_INVALIDARG;
+  
+  // Validate reasonable number of items to prevent resource exhaustion
+  const UInt32 kMaxItems = 1000000;  // 1 million items max
+  if (numItems > kMaxItems)
     return E_INVALIDARG;
     
   // Handle solid mode - use single-stream compression through 7z folder
@@ -1082,11 +1139,29 @@ void CParallelCompressor::UpdateDetailedStats(CParallelStatistics &stats)
   // Calculate throughput (bytes per second) with overflow protection
   if (elapsedMs > 0)
   {
-    // Use division first to avoid overflow when totalInSize is large
-    stats.BytesPerSecond = (_totalInSize / elapsedMs) * 1000 + 
-                           ((_totalInSize % elapsedMs) * 1000) / elapsedMs;
-    // Files per second * 100 for precision
-    stats.FilesPerSecond = ((UInt64)_itemsCompleted * 100000) / elapsedMs;
+    // Check for potential overflow in multiplication
+    if (_totalInSize > UINT64_MAX / 1000)
+    {
+      // Use division first to avoid overflow when totalInSize is large
+      stats.BytesPerSecond = (_totalInSize / elapsedMs) * 1000 + 
+                             ((_totalInSize % elapsedMs) * 1000) / elapsedMs;
+    }
+    else
+    {
+      // Safe to multiply first for better precision
+      stats.BytesPerSecond = (_totalInSize * 1000) / elapsedMs;
+    }
+    
+    // Files per second * 100 for precision with overflow check
+    if (_itemsCompleted > UINT64_MAX / 100000)
+    {
+      // Fall back to less precise calculation to avoid overflow
+      stats.FilesPerSecond = ((UInt64)_itemsCompleted * 100) / (elapsedMs / 1000 + 1);
+    }
+    else
+    {
+      stats.FilesPerSecond = ((UInt64)_itemsCompleted * 100000) / elapsedMs;
+    }
   }
   else
   {
