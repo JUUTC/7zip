@@ -107,7 +107,7 @@ CParallelCompressor::CParallelCompressor()
   , _segmentSize(0)
   , _encryptionEnabled(false)
   , _nextJobIndex(0)
-  , _methodId(0x030101) // LZMA
+  , _methodId(NArchive::N7z::k_LZMA)
   , _itemsCompleted(0)
   , _itemsFailed(0)
   , _totalInSize(0)

@@ -17,6 +17,7 @@
 #include "../Archive/7z/7zOut.h"
 #include "../Archive/7z/7zItem.h"
 #include "../Archive/7z/7zCompressionMode.h"
+#include "../Archive/7z/7zHeader.h"
 
 namespace NCompress {
 namespace NParallel {

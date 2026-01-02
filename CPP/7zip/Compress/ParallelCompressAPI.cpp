@@ -81,11 +81,11 @@ public:
         if (cItems[i].Data && cItems[i].DataSize > 0)
         {
           CBufInStream *streamSpec = new CBufInStream;
+          CMyComPtr<ISequentialInStream> stream = streamSpec;
           streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
-          // AddRef to transfer ownership to caller via raw pointer
-          // The caller (CompressMultiple) will take ownership when assigning to CMyComPtr
-          streamSpec->AddRef();
-          items[i].InStream = streamSpec;
+          // Transfer ownership to caller - they will assign to CMyComPtr which will AddRef
+          // Using Detach() ensures proper reference counting
+          items[i].InStream = stream.Detach();
         }
       }
       if (itemsReturned)
