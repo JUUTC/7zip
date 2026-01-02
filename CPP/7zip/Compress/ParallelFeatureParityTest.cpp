@@ -163,6 +163,11 @@ static bool TestSingleVsMultiStreamParity()
   }
   
   // Both should produce comparable output sizes (within reasonable variance)
+  if (singleStreamSize == 0)
+  {
+    TEST_FAIL("Single vs Multi Stream Parity", "Single stream output size is zero");
+  }
+  
   double ratio = (double)multiStreamSize / singleStreamSize;
   printf("  Size ratio (multi/single): %.2f\n", ratio);
   
@@ -377,7 +382,12 @@ static bool TestEncryptionComparison()
   
   // Encrypted archive should be slightly larger due to encryption overhead
   printf("Step 4: Checking size difference (encryption adds overhead)...\n");
-  printf("  Size difference: %zd bytes\n", (ssize_t)encryptedSize - (ssize_t)nonEncryptedSize);
+  
+  // Calculate size difference safely (avoiding ssize_t platform dependency)
+  if (encryptedSize >= nonEncryptedSize)
+    printf("  Size difference: +%zu bytes (encrypted larger)\n", encryptedSize - nonEncryptedSize);
+  else
+    printf("  Size difference: -%zu bytes (encrypted smaller)\n", nonEncryptedSize - encryptedSize);
   
   // Archives should be different (not identical)
   bool identical = (nonEncryptedSize == encryptedSize) && 

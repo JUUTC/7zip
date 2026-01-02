@@ -156,9 +156,12 @@ if command -v 7z &> /dev/null; then
         if [ -f "$archive" ]; then
             echo ""
             echo "Testing $archive (encrypted)..."
-            # Note: These require different passwords, test will be manual
             echo "  Encrypted archive found - requires password for extraction"
-            echo "  Manual verification: 7z t -pYOURPASSWORD $archive"
+            echo "  Passwords used in tests:"
+            echo "    - test_encrypted.7z: SecurePassword123!"
+            echo "    - test_encrypted_multi.7z: MultiItemPassword!"
+            echo "    - test_integration_encrypted.7z: IntegrationTestPassword!@#\$%"
+            echo "  Manual verification example: 7z t -pSecurePassword123! test_encrypted.7z"
         fi
     done
 else
