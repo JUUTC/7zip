@@ -152,10 +152,16 @@ public:
   void Cleanup();
 };
 
-Z7_CLASS_IMP_COM_1(
-  CParallelStreamQueue,
-  IParallelStreamQueue
-)
+Z7_class_final(CParallelStreamQueue) :
+  public IParallelStreamQueue,
+  public CMyUnknownImp
+{
+  Z7_COM_UNKNOWN_IMP_1(IParallelStreamQueue)
+
+public:
+  Z7_IFACE_COM7_IMP(IParallelStreamQueue)
+
+private:
   CMyComPtr<IParallelCompressor> _compressor;
   CObjectVector<CParallelInputItem> _queuedItems;
   UInt32 _maxQueueSize;
