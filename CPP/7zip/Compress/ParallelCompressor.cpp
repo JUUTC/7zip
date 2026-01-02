@@ -18,13 +18,13 @@
 #include "../Common/FilterCoder.h"
 #include "../Common/MultiOutStream.h"
 
-#include <limits.h>   // For SIZE_MAX portability
-#include <stdint.h>   // For UINT64_MAX and SIZE_MAX on modern systems
+#include <stdint.h>   // For UINT64_MAX and SIZE_MAX
 
 #ifndef E_POINTER
 #define E_POINTER ((HRESULT)0x80004003L)
 #endif
 
+// Fallback for SIZE_MAX if not provided by standard headers
 #ifndef SIZE_MAX
 #define SIZE_MAX ((size_t)-1)
 #endif
@@ -748,9 +748,9 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   
   // Validate size to prevent excessive memory allocation
   // Use SIZE_MAX to ensure we can actually allocate this much memory
-  const UInt64 kMaxSolidSize = (SIZE_MAX < kMaxSolidSizeGB) 
+  const UInt64 kActualMaxSolidSize = (SIZE_MAX < kMaxSolidSizeGB) 
       ? SIZE_MAX : kMaxSolidSizeGB;
-  if (totalUnpackSize > kMaxSolidSize)
+  if (totalUnpackSize > kActualMaxSolidSize)
   {
     return E_INVALIDARG;  // Size too large for solid compression
   }
