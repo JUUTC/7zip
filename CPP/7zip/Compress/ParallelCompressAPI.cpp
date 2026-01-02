@@ -162,12 +162,28 @@ HRESULT ParallelCompressor_SetEncryption(
   return wrapper->Compressor->SetEncryption(key, keySize, iv, ivSize);
 }
 
+HRESULT ParallelCompressor_SetPassword(ParallelCompressorHandle handle, const wchar_t *password)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetPassword(password);
+}
+
 HRESULT ParallelCompressor_SetSegmentSize(ParallelCompressorHandle handle, UInt64 segmentSize)
 {
   if (!handle)
     return E_INVALIDARG;
   ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
   return wrapper->Compressor->SetSegmentSize(segmentSize);
+}
+
+HRESULT ParallelCompressor_SetVolumeSize(ParallelCompressorHandle handle, UInt64 volumeSize)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetVolumeSize(volumeSize);
 }
 
 HRESULT ParallelCompressor_SetCallbacks(

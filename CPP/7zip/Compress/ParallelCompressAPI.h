@@ -58,7 +58,11 @@ HRESULT ParallelCompressor_SetEncryption(
     UInt32 keySize,
     const Byte *iv,
     UInt32 ivSize);
+HRESULT ParallelCompressor_SetPassword(
+    ParallelCompressorHandle handle,
+    const wchar_t *password);
 HRESULT ParallelCompressor_SetSegmentSize(ParallelCompressorHandle handle, UInt64 segmentSize);
+HRESULT ParallelCompressor_SetVolumeSize(ParallelCompressorHandle handle, UInt64 volumeSize);
 HRESULT ParallelCompressor_SetCallbacks(
     ParallelCompressorHandle handle,
     ParallelProgressCallback progressCallback,

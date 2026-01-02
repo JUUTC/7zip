@@ -5,6 +5,7 @@
 #include "ParallelCompressor.h"
 
 #include "../../../C/Threads.h"
+#include "../../../C/7zCrc.h"
 
 #include "../../Common/IntToString.h"
 #include "../../Common/StringConvert.h"
@@ -14,6 +15,7 @@
 #include "../Common/LimitedStreams.h"
 #include "../Common/MethodProps.h"
 #include "../Common/RegisterCodec.h"
+#include "../Common/FilterCoder.h"
 
 using namespace NWindows;
 
@@ -48,6 +50,43 @@ public:
       return _progress->SetRatioInfo(_inStartValueIsAssigned && inSize ? &inSize2 : inSize, outSize);
     }
     return S_OK;
+  }
+};
+
+// CRC-calculating input stream wrapper
+class CCrcInStream:
+  public ISequentialInStream,
+  public CMyUnknownImp
+{
+public:
+  Z7_COM_UNKNOWN_IMP_1(ISequentialInStream)
+  
+  CMyComPtr<ISequentialInStream> _stream;
+  UInt32 _crc;
+  UInt64 _size;
+  
+  void Init(ISequentialInStream *stream)
+  {
+    _stream = stream;
+    _crc = CRC_INIT_VAL;
+    _size = 0;
+  }
+  
+  UInt32 GetCRC() const { return CRC_GET_DIGEST(_crc); }
+  UInt64 GetSize() const { return _size; }
+  
+  Z7_COM7F_IMF(Read(void *data, UInt32 size, UInt32 *processedSize))
+  {
+    UInt32 realProcessed = 0;
+    HRESULT result = _stream->Read(data, size, &realProcessed);
+    if (realProcessed > 0)
+    {
+      _crc = CrcUpdate(_crc, data, realProcessed);
+      _size += realProcessed;
+    }
+    if (processedSize)
+      *processedSize = realProcessed;
+    return result;
   }
 };
 
@@ -105,6 +144,7 @@ CParallelCompressor::CParallelCompressor()
   : _numThreads(1)
   , _compressionLevel(5)
   , _segmentSize(0)
+  , _volumeSize(0)
   , _encryptionEnabled(false)
   , _nextJobIndex(0)
   , _methodId(NArchive::N7z::k_LZMA)
@@ -113,11 +153,14 @@ CParallelCompressor::CParallelCompressor()
   , _totalInSize(0)
   , _totalOutSize(0)
 {
+  // Initialize CRC tables
+  CrcGenerateTable();
 }
 
 CParallelCompressor::~CParallelCompressor()
 {
   Cleanup();
+  _password.Wipe_and_Empty();
 }
 
 HRESULT CParallelCompressor::Init()
@@ -234,9 +277,30 @@ Z7_COM7F_IMF(CParallelCompressor::SetEncryption(
   return S_OK;
 }
 
+Z7_COM7F_IMF(CParallelCompressor::SetPassword(const wchar_t *password))
+{
+  if (password && *password)
+  {
+    _password = password;
+    _encryptionEnabled = true;
+  }
+  else
+  {
+    _password.Empty();
+    _encryptionEnabled = false;
+  }
+  return S_OK;
+}
+
 Z7_COM7F_IMF(CParallelCompressor::SetSegmentSize(UInt64 segmentSize))
 {
   _segmentSize = segmentSize;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetVolumeSize(UInt64 volumeSize))
+{
+  _volumeSize = volumeSize;
   return S_OK;
 }
 
@@ -325,6 +389,11 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
     // Note: If properties cannot be captured, EncoderProps remains empty
     // This is normal for codecs that don't require properties (e.g., Copy)
   }
+  
+  // Wrap input stream with CRC calculation
+  CCrcInStream *crcStreamSpec = new CCrcInStream;
+  CMyComPtr<ISequentialInStream> crcStream = crcStreamSpec;
+  crcStreamSpec->Init(job.InStream);
     
   CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
@@ -335,7 +404,7 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   
   UInt64 inSize = job.InSize;
   HRESULT result = encoder->Code(
-      job.InStream,
+      crcStream,  // Use CRC-calculating stream
       outStream,
       job.InSize > 0 ? &inSize : NULL,
       NULL,
@@ -349,6 +418,10 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
     {
       memcpy(job.CompressedData, outStreamSpec->GetBuffer(), (size_t)job.OutSize);
     }
+    
+    // Store CRC of uncompressed data
+    job.Crc = crcStreamSpec->GetCRC();
+    job.CrcDefined = true;
     
     if (_callback)
       _callback->OnItemProgress(job.ItemIndex, job.InSize, job.OutSize);
@@ -436,6 +509,22 @@ void CParallelCompressor::PrepareCompressionMethod(NArchive::N7z::CCompressionMe
   }
   
   method.NumThreads = _numThreads;
+  
+  // Set encryption if password is defined
+  if (_encryptionEnabled && !_password.IsEmpty())
+  {
+    method.PasswordIsDefined = true;
+    method.Password = _password;
+    
+    // Add AES encryption method (same as main branch)
+    NArchive::N7z::CMethodFull &aesMethod = method.Methods.AddNew();
+    aesMethod.Id = NArchive::N7z::k_AES;
+    aesMethod.NumStreams = 1;
+  }
+  else
+  {
+    method.PasswordIsDefined = false;
+  }
 }
 
 HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
@@ -477,7 +566,9 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     fileItem.Size = job.InSize;
     fileItem.HasStream = (job.InSize > 0);
     fileItem.IsDir = false;
-    fileItem.CrcDefined = false;
+    // Include CRC in file item (same as main branch)
+    fileItem.CrcDefined = job.CrcDefined;
+    fileItem.Crc = job.Crc;
     
     CFileItem2 fileItem2;
     fileItem2.MTime = job.ModTime.dwLowDateTime | ((UInt64)job.ModTime.dwHighDateTime << 32);
@@ -506,11 +597,9 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     
     db.PackSizes.Add(packSizes[idx]);
     
-    // CRC calculation: Currently disabled for performance
-    // To enable: calculate CRC32 during compression in CompressJob()
-    // Store in job.Crc, then use: db.PackCRCs.Defs.Add(true); db.PackCRCs.Vals.Add(job.Crc);
-    db.PackCRCs.Defs.Add(false);
-    db.PackCRCs.Vals.Add(0);
+    // Include CRC for pack data (same as main branch)
+    db.PackCRCs.Defs.Add(job.CrcDefined);
+    db.PackCRCs.Vals.Add(job.Crc);
     
     db.NumUnpackStreamsVector.Add(1);
     db.CoderUnpackSizes.Add(unpackSizes[idx]);
