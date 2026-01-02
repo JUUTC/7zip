@@ -82,7 +82,6 @@ Z7_CLASS_IMP_COM_6(
   CObjectVector<CCompressionJob> _jobs;
   UInt32 _nextJobIndex;
   NWindows::NSynchronization::CCriticalSection _criticalSection;
-  NWindows::NSynchronization::CSemaphore _jobSemaphore;
   NWindows::NSynchronization::CManualResetEvent _completeEvent;
   CMethodId _methodId;
   CObjectVector<CProperty> _properties;

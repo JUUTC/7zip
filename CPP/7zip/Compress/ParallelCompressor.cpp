@@ -101,18 +101,18 @@ HRESULT CCompressWorker::ProcessJob()
   return Compressor->CompressJob(*CurrentJob, NULL);
 }
 
-CParallelCompressor::CParallelCompressor():
+CParallelCompressor::CParallelCompressor()
   : _numThreads(1)
   , _compressionLevel(5)
   , _segmentSize(0)
   , _encryptionEnabled(false)
   , _nextJobIndex(0)
+  , _methodId(0x030101) // LZMA
   , _itemsCompleted(0)
   , _itemsFailed(0)
   , _totalInSize(0)
   , _totalOutSize(0)
 {
-  _methodId = { 0x030101 }; // LZMA
 }
 
 CParallelCompressor::~CParallelCompressor()
@@ -132,7 +132,6 @@ HRESULT CParallelCompressor::Init()
     RINOK(worker.StartEvent.Create());
     RINOK(worker.Create());
   }
-  RINOK(_jobSemaphore.Create(0, 0x10000));
   RINOK(_completeEvent.Create(true));
   return S_OK;
 }
@@ -301,15 +300,18 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   // Notify start
   if (_callback)
     _callback->OnItemStart(job.ItemIndex, job.Name);
-    
-  // Create memory output stream - use the existing class
-  CBufPtrSeqOutStream *outStreamSpec = new CBufPtrSeqOutStream;
-  CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
-  // Estimate output size (input size * 1.5 for worst case)
-  size_t estimatedSize = (size_t)(job.InSize > 0 ? job.InSize + job.InSize / 2 : 1 << 20);
-  job.CompressedData.Alloc(estimatedSize);
-  outStreamSpec->Init(job.CompressedData, estimatedSize);
+  // Check for cancellation before starting
+  if (_callback)
+  {
+    if (_callback->ShouldCancel())
+      return E_ABORT;
+  }
+    
+  // Create dynamic memory output stream that can grow as needed
+  // This handles incompressible data that may expand beyond the input size
+  CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
+  CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
   // Progress callback
   CLocalProgress *progressSpec = new CLocalProgress;
@@ -327,14 +329,18 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
       
   if (result == S_OK)
   {
-    job.OutSize = outStreamSpec->GetPos();
-    if (job.OutSize < estimatedSize)
+    job.OutSize = outStreamSpec->GetSize();
+    
+    // Copy compressed data from dynamic buffer to job buffer
+    job.CompressedData.Alloc((size_t)job.OutSize);
+    if (job.OutSize > 0)
     {
-      job.CompressedData.ChangeSize_KeepData((size_t)job.OutSize, (size_t)job.OutSize);
+      memcpy(job.CompressedData, outStreamSpec->GetBuffer(), (size_t)job.OutSize);
     }
-    if (_encryptionEnabled && _encryptionKey.Size() > 0)
-    {
-    }
+    
+    // Note: Encryption is marked TODO in the interface
+    // When implemented, encryption should be applied here
+    
     if (_callback)
       _callback->OnItemProgress(job.ItemIndex, job.InSize, job.OutSize);
   }
@@ -674,7 +680,7 @@ Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
   return S_OK;
 }
 
-CParallelStreamQueue::CParallelStreamQueue():
+CParallelStreamQueue::CParallelStreamQueue()
   : _maxQueueSize(1000)
   , _processing(false)
   , _itemsProcessed(0)

@@ -81,9 +81,11 @@ public:
         if (cItems[i].Data && cItems[i].DataSize > 0)
         {
           CBufInStream *streamSpec = new CBufInStream;
-          CMyComPtr<ISequentialInStream> stream = streamSpec;
           streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
-          items[i].InStream = stream;
+          // AddRef to transfer ownership to caller via raw pointer
+          // The caller (CompressMultiple) will take ownership when assigning to CMyComPtr
+          streamSpec->AddRef();
+          items[i].InStream = streamSpec;
         }
       }
       if (itemsReturned)
@@ -145,8 +147,7 @@ HRESULT ParallelCompressor_SetCompressionMethod(ParallelCompressorHandle handle,
   if (!handle)
     return E_INVALIDARG;
   ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
-  CMethodId mid;
-  mid.Id = methodId;
+  CMethodId mid = methodId;  // CMethodId is UInt64
   return wrapper->Compressor->SetCompressionMethod(&mid);
 }
 
@@ -184,7 +185,6 @@ HRESULT ParallelCompressor_SetCallbacks(
   wrapper->Callback->_progressCallback = progressCallback;
   wrapper->Callback->_errorCallback = errorCallback;
   wrapper->Callback->_lookAheadCallback = lookAheadCallback;
-  wrapper->Callback->_userData = userData;
   wrapper->Callback->_userData = userData;
   
   return wrapper->Compressor->SetCallback(wrapper->Callback);

@@ -63,7 +63,7 @@ int Example_CompressMultipleBuffers()
   // Configure
   ParallelCompressor_SetNumThreads(compressor, 4);
   ParallelCompressor_SetCompressionLevel(compressor, 5);
-  ParallelCompressor_SetCallbacks(compressor, OnProgress, OnError, NULL);
+  ParallelCompressor_SetCallbacks(compressor, OnProgress, OnError, NULL, NULL);
   
   // Compress to file
   HRESULT hr = ParallelCompressor_CompressMultiple(
@@ -129,7 +129,7 @@ int Example_CompressMultipleFiles()
   ParallelCompressor_SetNumThreads(compressor, 4);
   ParallelCompressor_SetCompressionLevel(compressor, 7);
   ParallelCompressor_SetEncryption(compressor, key, 32, iv, 16);
-  ParallelCompressor_SetCallbacks(compressor, OnProgress, OnError, NULL);
+  ParallelCompressor_SetCallbacks(compressor, OnProgress, OnError, NULL, NULL);
   
   // Compress to file
   HRESULT hr = ParallelCompressor_CompressMultiple(
