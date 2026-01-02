@@ -14,11 +14,25 @@
 - Compression methods: LZMA, LZMA2, BZip2, Deflate
 - Error handling with per-item status tracking
 - Example code and test suite
+- **Solid mode compression** - files share dictionary for better compression ratio
+- **Multi-volume archives** - split large archives across multiple files (.001, .002, etc.)
 
-### Current Limitations
-- Non-solid mode only (solid blocks not implemented)
-- Encryption API present but actual data encryption not implemented
-- Multi-volume archives not implemented (API stub only)
+### Solid Mode
+- SetSolidMode(true) enables solid compression
+- SetSolidBlockSize(N) controls files per solid block (0 = all files in one block)
+- Better compression ratio for similar files
+- Compatible with standard 7z extraction
+
+### Multi-Volume Support
+- SetVolumeSize(bytes) specifies volume size
+- SetVolumePrefix(path) sets output path prefix
+- Creates .001, .002, .003 etc. volume files
+- Compatible with standard 7z extraction
+
+### Security Features
+- AES-256 encryption with password-based key derivation
+- Both data content and archive headers can be encrypted
+- Uses standard 7-Zip encryption mechanism for compatibility
 
 ### Performance
 - 10-30x speedup for processing millions of small files
