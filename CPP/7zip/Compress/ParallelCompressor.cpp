@@ -112,7 +112,6 @@ CParallelCompressor::CParallelCompressor()
   , _itemsFailed(0)
   , _totalInSize(0)
   , _totalOutSize(0)
-  , _totalExpectedInSize(0)
 {
 }
 
@@ -149,7 +148,7 @@ void CParallelCompressor::Cleanup()
   }
   _workers.Clear();
   _jobs.Clear();
-  _progress.Release();  // Release any held progress callback
+  _progress.Release();
 }
 
 Z7_COM7F_IMF(CParallelCompressor::Code(
@@ -299,28 +298,22 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   if (!encoder)
     return E_FAIL;
     
-  // Notify start
   if (_callback)
     _callback->OnItemStart(job.ItemIndex, job.Name);
   
-  // Check for cancellation before starting
   if (_callback)
   {
     if (_callback->ShouldCancel())
       return E_ABORT;
   }
     
-  // Create dynamic memory output stream that can grow as needed
-  // This handles incompressible data that may expand beyond the input size
   CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
-  // Progress callback
   CLocalProgress *progressSpec = new CLocalProgress;
   CMyComPtr<ICompressProgressInfo> progress = progressSpec;
   progressSpec->Init(NULL, false);
   
-  // Compress
   UInt64 inSize = job.InSize;
   HRESULT result = encoder->Code(
       job.InStream,
@@ -332,16 +325,11 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   if (result == S_OK)
   {
     job.OutSize = outStreamSpec->GetSize();
-    
-    // Copy compressed data from dynamic buffer to job buffer
     job.CompressedData.Alloc((size_t)job.OutSize);
     if (job.OutSize > 0)
     {
       memcpy(job.CompressedData, outStreamSpec->GetBuffer(), (size_t)job.OutSize);
     }
-    
-    // Note: Encryption is marked TODO in the interface
-    // When implemented, encryption should be applied here
     
     if (_callback)
       _callback->OnItemProgress(job.ItemIndex, job.InSize, job.OutSize);
@@ -385,11 +373,8 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
     if (_callback)
       _callback->OnItemComplete(job->ItemIndex, job->Result, job->InSize, job->OutSize);
     
-    // Report overall progress
     if (_progress)
-    {
       _progress->SetRatioInfo(&_totalInSize, &_totalOutSize);
-    }
     
     if (_itemsCompleted >= _jobs.Size())
       _completeEvent.Set();
@@ -536,19 +521,15 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     RINOK(Init());
   }
   
-  // Store progress callback for reporting from worker threads
   _progress = progress;
   
-  // Reset state
   _nextJobIndex = 0;
   _itemsCompleted = 0;
   _itemsFailed = 0;
   _totalInSize = 0;
   _totalOutSize = 0;
-  _totalExpectedInSize = 0;
   _completeEvent.Reset();
   
-  // Create jobs and calculate total expected size for progress
   _jobs.Clear();
   for (UInt32 i = 0; i < numItems; i++)
   {
@@ -560,7 +541,6 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     job.Attributes = items[i].Attributes;
     job.ModTime = items[i].ModificationTime;
     job.UserData = items[i].UserData;
-    _totalExpectedInSize += items[i].Size;
   }
   if (_callback)
   {
@@ -602,17 +582,13 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   
   if (successCount == 0)
   {
-    // All jobs failed
-    _progress.Release();  // Clear progress reference
+    _progress.Release();
     if (_callback)
       _callback->OnError(0, E_FAIL, L"All compression jobs failed");
     return E_FAIL;
   }
   
-  // Create 7z archive with successfully compressed data
   HRESULT archiveResult = Create7zArchive(outStream, _jobs);
-  
-  // Clear progress reference after completion
   _progress.Release();
   
   if (archiveResult != S_OK)
@@ -622,7 +598,6 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     return archiveResult;
   }
   
-  // Return S_FALSE if some jobs failed, S_OK if all succeeded
   if (_itemsFailed > 0)
     return S_FALSE;
   return S_OK;
@@ -660,17 +635,6 @@ Z7_COM7F_IMF(CParallelCompressor::WriteCoderProperties(ISequentialOutStream *out
 Z7_COM7F_IMF(CParallelCompressor::SetCoderPropertiesOpt(
     const PROPID *propIDs, const PROPVARIANT *props, UInt32 numProps))
 {
-  for (UInt32 i = 0; i < numProps; i++)
-  {
-    PROPID propID = propIDs[i];
-    const PROPVARIANT &prop = props[i];
-    if (propID == NCoderPropID::kExpectedDataSize)
-    {
-      if (prop.vt == VT_UI8)
-      {
-      }
-    }
-  }
   return SetCoderProperties(propIDs, props, numProps);
 }
 

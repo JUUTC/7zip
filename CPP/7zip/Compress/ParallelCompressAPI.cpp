@@ -83,8 +83,6 @@ public:
           CBufInStream *streamSpec = new CBufInStream;
           CMyComPtr<ISequentialInStream> stream = streamSpec;
           streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
-          // Transfer ownership to caller - they will assign to CMyComPtr which will AddRef
-          // Using Detach() ensures proper reference counting
           items[i].InStream = stream.Detach();
         }
       }
@@ -147,7 +145,7 @@ HRESULT ParallelCompressor_SetCompressionMethod(ParallelCompressorHandle handle,
   if (!handle)
     return E_INVALIDARG;
   ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
-  CMethodId mid = methodId;  // CMethodId is UInt64
+  CMethodId mid = methodId;
   return wrapper->Compressor->SetCompressionMethod(&mid);
 }
 

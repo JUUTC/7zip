@@ -53,7 +53,7 @@ public:
   NWindows::NSynchronization::CAutoResetEvent StartEvent;
   NWindows::CThread Thread;
   CCompressionJob *CurrentJob;
-  volatile bool StopFlag;  // volatile for thread visibility
+  volatile bool StopFlag;
   
   CCompressWorker(): Compressor(NULL), ThreadIndex(0), CurrentJob(NULL), StopFlag(false) {}
   
@@ -79,7 +79,7 @@ Z7_CLASS_IMP_COM_6(
   CByteBuffer _encryptionKey;
   CByteBuffer _encryptionIV;
   CMyComPtr<IParallelCompressCallback> _callback;
-  CMyComPtr<ICompressProgressInfo> _progress;  // Progress callback for overall compression
+  CMyComPtr<ICompressProgressInfo> _progress;
   CObjectVector<CCompressWorker> _workers;
   CObjectVector<CCompressionJob> _jobs;
   UInt32 _nextJobIndex;
@@ -91,7 +91,6 @@ Z7_CLASS_IMP_COM_6(
   UInt32 _itemsFailed;
   UInt64 _totalInSize;
   UInt64 _totalOutSize;
-  UInt64 _totalExpectedInSize;  // Expected total input size for progress calculation
   DECL_EXTERNAL_CODECS_LOC_VARS
   HRESULT CreateEncoder(ICompressCoder **encoder);
   HRESULT CompressJob(CCompressionJob &job, ICompressCoder *encoder);
