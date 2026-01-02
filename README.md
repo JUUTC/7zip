@@ -4,98 +4,65 @@ Official website: [7-zip.org](https://7-zip.org)
 
 ## Overview
 
-7-Zip is a file archiver with a high compression ratio. This repository includes the standard 7-Zip functionality plus parallel compression support for processing multiple input streams concurrently.
+7-Zip is a file archiver with high compression ratio. This repository includes standard 7-Zip functionality plus parallel compression support for concurrent multi-stream processing.
 
-## Parallel Compression Feature
+## Features
 
-The parallel compression extension enables efficient compression of multiple files or data streams simultaneously using a thread pool.
+- Parallel compression (up to 256 threads)
+- Memory buffers, files, and network stream support
+- Standard 7z archive format (compatible with 7z.exe)
+- AES-256 encryption (data + headers)
+- Solid mode compression
+- Multi-volume archives
+- Progress tracking and error handling
+- C++ and C APIs
 
-### Key Features
-- Compress multiple input streams in parallel (up to 256 threads)
-- Support for memory buffers, files, and network streams via `ISequentialInStream`
-- Generates standard 7z archives compatible with 7z.exe and 7z.dll
-- Progress tracking and error handling per item
-- Both C++ and C APIs available
+## Usage
 
-### Basic Usage (C++ API)
-
+### C++ API
 ```cpp
 #include "IParallelCompress.h"
 #include "ParallelCompressor.h"
 
-// Create compressor
 CParallelCompressor compressor;
 compressor.SetNumThreads(8);
 compressor.SetCompressionLevel(5);
 
-// Prepare input items
 CParallelInputItem items[count];
-for (int i = 0; i < count; i++) {
-  items[i].InStream = myInputStream;
-  items[i].Name = L"filename";
-  items[i].Size = size;
-}
+// ... configure items ...
 
-// Compress to 7z archive
 compressor.CompressMultiple(items, count, outputStream, callback);
 ```
 
-### Basic Usage (C API)
-
+### C API
 ```c
 #include "ParallelCompressAPI.h"
 
-// Create and configure
 ParallelCompressorHandle h = ParallelCompressor_Create();
 ParallelCompressor_SetNumThreads(h, 8);
-
-// Compress files
 ParallelCompressor_CompressMultiple(h, items, count, L"output.7z");
-
-// Cleanup
 ParallelCompressor_Destroy(h);
 ```
 
-### Files
-- **Core**: `CPP/7zip/IParallelCompress.h`, `CPP/7zip/Compress/ParallelCompressor.{h,cpp}`
-- **C API**: `CPP/7zip/Compress/ParallelCompressAPI.{h,cpp}`
-- **Examples**: `CPP/7zip/Compress/ParallelCompressExample.cpp`
-- **Tests**: `CPP/7zip/Compress/ParallelCompressor{Test,Validation}.cpp`
-
-### Current State
-- ✅ Parallel compression with configurable thread pool
-- ✅ Standard 7z archive format output
-- ✅ LZMA, LZMA2, BZip2, and Deflate compression methods
-- ✅ Progress callbacks and error handling
-- ✅ CRC32 calculation for data integrity verification
-- ✅ AES-256 encryption with password-based key derivation (data + headers)
-- ✅ Solid mode compression (files share dictionary for better ratio)
-- ✅ Multi-volume archives (split large archives into multiple files)
-
 ### Solid Mode
-Solid mode combines multiple files into a single compressed stream, enabling better compression ratios for similar files:
-
 ```cpp
 compressor.SetSolidMode(true);
-compressor.SetSolidBlockSize(100);  // 100 files per block (0 = all in one block)
-compressor.CompressMultiple(items, count, outputStream, callback);
+compressor.SetSolidBlockSize(100);  // files per block (0 = all)
 ```
 
-### Multi-Volume Archives
-Split large archives across multiple files:
-
+### Multi-Volume
 ```cpp
-compressor.SetVolumeSize(100 * 1024 * 1024);  // 100 MB per volume
-compressor.SetVolumePrefix(L"archive.7z");     // Creates archive.7z.001, .002, etc.
-compressor.CompressMultiple(items, count, outputStream, callback);
+compressor.SetVolumeSize(100 * 1024 * 1024);  // 100 MB volumes
+compressor.SetVolumePrefix(L"archive.7z");    // .001, .002, etc.
 ```
 
-### Performance
-Typical speedup with 16 threads compared to sequential processing:
-- Small files (10KB): ~10-15x faster
-- Medium files (100KB): ~8-12x faster
-- Network streams: ~20-30x faster (with prefetching)
+## Performance
+
+16 threads vs sequential:
+- Small files (10KB): 10-15x faster
+- Medium files (100KB): 8-12x faster
+- Network streams: 20-30x faster
 
 ## License
 
-Same as 7-Zip: GNU LGPL license with unRAR restriction. See [7-zip.org/license.txt](https://7-zip.org/license.txt)
+GNU LGPL with unRAR restriction. See [7-zip.org/license.txt](https://7-zip.org/license.txt)
