@@ -37,8 +37,12 @@ struct CCompressionJob
   HRESULT Result;
   bool Completed;
   CByteBuffer CompressedData;
+  CByteBuffer EncoderProps;  // Encoder properties for archive header
+  UInt32 Crc;                // CRC32 of uncompressed data
+  bool CrcDefined;           // Whether CRC was calculated
   CCompressionJob(): ItemIndex(0), InSize(0), OutSize(0),
-      Attributes(0), UserData(NULL), Result(S_OK), Completed(false)
+      Attributes(0), UserData(NULL), Result(S_OK), Completed(false),
+      Crc(0), CrcDefined(false)
   {
     ModTime.dwLowDateTime = 0;
     ModTime.dwHighDateTime = 0;
@@ -75,7 +79,9 @@ Z7_CLASS_IMP_COM_6(
   UInt32 _numThreads;
   UInt32 _compressionLevel;
   UInt64 _segmentSize;
+  UInt64 _volumeSize;        // Size for multi-volume archives (0 = single volume)
   bool _encryptionEnabled;
+  UString _password;         // Password for encryption
   CByteBuffer _encryptionKey;
   CByteBuffer _encryptionIV;
   CMyComPtr<IParallelCompressCallback> _callback;
@@ -91,8 +97,17 @@ Z7_CLASS_IMP_COM_6(
   UInt32 _itemsFailed;
   UInt64 _totalInSize;
   UInt64 _totalOutSize;
+  
+  // Extended statistics for progress tracking
+  UInt32 _itemsTotal;           // Total items to process
+  UInt32 _activeThreads;        // Currently active compression threads
+  UInt64 _startTimeMs;          // Start time in milliseconds
+  UInt64 _lastProgressTimeMs;   // Last progress update time
+  UInt32 _progressIntervalMs;   // Progress update interval (default 100ms)
+  
   DECL_EXTERNAL_CODECS_LOC_VARS
   HRESULT CreateEncoder(ICompressCoder **encoder);
+  HRESULT CreateEncryptionFilter(ICompressFilter **filter);
   HRESULT CompressJob(CCompressionJob &job, ICompressCoder *encoder);
   HRESULT CompressSingleStream(ISequentialInStream *inStream, ISequentialOutStream *outStream,
       const UInt64 *inSize, ICompressProgressInfo *progress);
@@ -102,11 +117,16 @@ Z7_CLASS_IMP_COM_6(
   HRESULT Create7zArchive(ISequentialOutStream *outStream,
       const CObjectVector<CCompressionJob> &jobs);
   void PrepareCompressionMethod(NArchive::N7z::CCompressionMethodMode &method);
+  void UpdateDetailedStats(CParallelStatistics &stats);
 public:
   CParallelCompressor();
   ~CParallelCompressor();
   HRESULT Init();
   void Cleanup();
+  HRESULT SetPassword(const wchar_t *password);
+  HRESULT SetVolumeSize(UInt64 volumeSize);
+  HRESULT GetDetailedStatistics(CParallelStatistics *stats);
+  HRESULT SetProgressUpdateInterval(UInt32 intervalMs);
 };
 
 Z7_CLASS_IMP_COM_1(
