@@ -112,6 +112,7 @@ CParallelCompressor::CParallelCompressor()
   , _itemsFailed(0)
   , _totalInSize(0)
   , _totalOutSize(0)
+  , _totalExpectedInSize(0)
 {
 }
 
@@ -148,6 +149,7 @@ void CParallelCompressor::Cleanup()
   }
   _workers.Clear();
   _jobs.Clear();
+  _progress.Release();  // Release any held progress callback
 }
 
 Z7_COM7F_IMF(CParallelCompressor::Code(
@@ -382,6 +384,13 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
     }
     if (_callback)
       _callback->OnItemComplete(job->ItemIndex, job->Result, job->InSize, job->OutSize);
+    
+    // Report overall progress
+    if (_progress)
+    {
+      _progress->SetRatioInfo(&_totalInSize, &_totalOutSize);
+    }
+    
     if (_itemsCompleted >= _jobs.Size())
       _completeEvent.Set();
   }
@@ -527,15 +536,19 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     RINOK(Init());
   }
   
+  // Store progress callback for reporting from worker threads
+  _progress = progress;
+  
   // Reset state
   _nextJobIndex = 0;
   _itemsCompleted = 0;
   _itemsFailed = 0;
   _totalInSize = 0;
   _totalOutSize = 0;
+  _totalExpectedInSize = 0;
   _completeEvent.Reset();
   
-  // Create jobs
+  // Create jobs and calculate total expected size for progress
   _jobs.Clear();
   for (UInt32 i = 0; i < numItems; i++)
   {
@@ -547,6 +560,7 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     job.Attributes = items[i].Attributes;
     job.ModTime = items[i].ModificationTime;
     job.UserData = items[i].UserData;
+    _totalExpectedInSize += items[i].Size;
   }
   if (_callback)
   {
@@ -589,6 +603,7 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   if (successCount == 0)
   {
     // All jobs failed
+    _progress.Release();  // Clear progress reference
     if (_callback)
       _callback->OnError(0, E_FAIL, L"All compression jobs failed");
     return E_FAIL;
@@ -596,6 +611,10 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   
   // Create 7z archive with successfully compressed data
   HRESULT archiveResult = Create7zArchive(outStream, _jobs);
+  
+  // Clear progress reference after completion
+  _progress.Release();
+  
   if (archiveResult != S_OK)
   {
     if (_callback)

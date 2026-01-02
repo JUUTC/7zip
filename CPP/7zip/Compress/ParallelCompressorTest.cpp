@@ -164,8 +164,8 @@ static bool TestCompressionMethods()
   size_t dataSize = strlen(testData);
   
   CMethodId methods[] = {
-    { 0x030101 },
-    { 0x030901 }
+    0x030101,  // LZMA
+    0x030901   // LZMA2
   };
   
   for (int i = 0; i < 2; i++)
