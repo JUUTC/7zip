@@ -88,7 +88,7 @@ static bool TestMemoryStreamE2E()
     item.InStream = inStream;
     
     wchar_t name[64];
-    swprintf(name, 64, L"stream_%03d.dat", i);
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"stream_%03d.dat", i);
     item.Name = name;
     item.Size = contentSize;
     item.Attributes = 0x20;
@@ -205,7 +205,7 @@ static bool TestEncryptedArchiveIntegration()
     item.InStream = inStream;
     
     wchar_t name[64];
-    swprintf(name, 64, L"confidential_%03d.txt", i);
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"confidential_%03d.txt", i);
     item.Name = name;
     item.Size = contentSize;
     item.Attributes = 0x20;
@@ -318,7 +318,7 @@ static bool TestLargeFileIntegration()
     item.InStream = inStream;
     
     wchar_t name[64];
-    swprintf(name, 64, L"large_file_%d.bin", i);
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"large_file_%d.bin", i);
     item.Name = name;
     item.Size = fileSize;
     item.Attributes = 0x20;
@@ -461,12 +461,15 @@ static bool TestErrorHandlingIntegration()
   printf("  Test: Thread count bounds...\n");
   compressor->SetNumThreads(0);  // Should be clamped to 1
   compressor->SetNumThreads(1000);  // Should be clamped to 256
-  printf("    ✓ Thread count bounds enforced\n");
+  // Note: SetNumThreads returns S_OK regardless, clamping is internal.
+  // We verify the API doesn't crash with invalid values.
+  printf("    ✓ Thread count API accepts out-of-range values (clamped internally)\n");
   
   // Test 5: Compression level bounds
   printf("  Test: Compression level bounds...\n");
   compressor->SetCompressionLevel(100);  // Should be clamped to 9
-  printf("    ✓ Compression level bounds enforced\n");
+  // Note: SetCompressionLevel returns S_OK regardless, clamping is internal.
+  printf("    ✓ Compression level API accepts out-of-range values (clamped internally)\n");
   
   delete compressor;
   TEST_PASS("Error Handling Integration");
@@ -507,7 +510,7 @@ static bool TestDetailedStatisticsIntegration()
     item.InStream = inStream;
     
     wchar_t name[64];
-    swprintf(name, 64, L"stats_test_%03d.dat", i);
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"stats_test_%03d.dat", i);
     item.Name = name;
     item.Size = contentSize;
     item.Attributes = 0x20;

@@ -109,8 +109,21 @@ echo "============================================="
 echo "Testing Archive Extraction with 7z"
 echo "============================================="
 if command -v 7z &> /dev/null; then
-    # Test all generated archives (non-encrypted)
-    for archive in test_memory_to_7z.7z test_large_cache.7z test_mixed_content.7z test_stream_interface.7z test_archive.7z test_crc.7z test_multiple_items.7z test_integration_memory.7z test_integration_large.7z; do
+    # Test all generated non-encrypted archives
+    # Using array for better maintainability
+    NON_ENCRYPTED_ARCHIVES=(
+        "test_memory_to_7z.7z"
+        "test_large_cache.7z"
+        "test_mixed_content.7z"
+        "test_stream_interface.7z"
+        "test_archive.7z"
+        "test_crc.7z"
+        "test_multiple_items.7z"
+        "test_integration_memory.7z"
+        "test_integration_large.7z"
+    )
+    
+    for archive in "${NON_ENCRYPTED_ARCHIVES[@]}"; do
         if [ -f "$archive" ]; then
             echo ""
             echo "Testing $archive..."
@@ -132,7 +145,14 @@ if command -v 7z &> /dev/null; then
     # Test encrypted archives with password
     echo ""
     echo "Testing encrypted archives..."
-    for archive in test_encrypted.7z test_encrypted_multi.7z test_integration_encrypted.7z; do
+    
+    ENCRYPTED_ARCHIVES=(
+        "test_encrypted.7z"
+        "test_encrypted_multi.7z"
+        "test_integration_encrypted.7z"
+    )
+    
+    for archive in "${ENCRYPTED_ARCHIVES[@]}"; do
         if [ -f "$archive" ]; then
             echo ""
             echo "Testing $archive (encrypted)..."

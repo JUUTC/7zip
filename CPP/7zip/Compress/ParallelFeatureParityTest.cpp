@@ -529,8 +529,8 @@ static bool TestMultipleItemsCompression()
     
     item.InStream = inStream;
     
-    wchar_t name[32];
-    swprintf(name, 32, L"file%03d.txt", i);
+    wchar_t name[64];
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"file%03d.txt", i);
     item.Name = name;
     item.Size = contentSize;
     item.Attributes = 0x20;
@@ -641,8 +641,8 @@ static bool TestEncryptedMultipleItems()
     
     item.InStream = inStream;
     
-    wchar_t name[32];
-    swprintf(name, 32, L"secret%d.txt", i);
+    wchar_t name[64];
+    swprintf(name, sizeof(name) / sizeof(wchar_t), L"secret%d.txt", i);
     item.Name = name;
     item.Size = contentSize;
     item.Attributes = 0;
