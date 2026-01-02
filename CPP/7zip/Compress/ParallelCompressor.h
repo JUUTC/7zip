@@ -7,13 +7,14 @@
 #include "../../Common/MyVector.h"
 #include "../../Common/MyString.h"
 
-#include "../Windows/Synchronization.h"
-#include "../Windows/Thread.h"
+#include "../../Windows/Synchronization.h"
+#include "../../Windows/Thread.h"
 
-#include "IParallelCompress.h"
-#include "ICoder.h"
-#include "IPassword.h"
+#include "../IParallelCompress.h"
+#include "../ICoder.h"
+#include "../IPassword.h"
 #include "../Common/CreateCoder.h"
+#include "../Common/MethodProps.h"
 #include "../Archive/7z/7zOut.h"
 #include "../Archive/7z/7zItem.h"
 #include "../Archive/7z/7zCompressionMode.h"
@@ -67,15 +68,34 @@ public:
   HRESULT ProcessJob();
 };
 
-Z7_CLASS_IMP_COM_6(
-  CParallelCompressor,
-  IParallelCompressor,
-  ICompressCoder,
-  ICompressSetCoderProperties,
-  ICompressWriteCoderProperties,
-  ICompressSetCoderPropertiesOpt,
-  ICompressGetInStreamProcessedSize
-)
+Z7_class_final(CParallelCompressor) :
+  public IParallelCompressor,
+  public ICompressCoder,
+  public ICompressSetCoderProperties,
+  public ICompressWriteCoderProperties,
+  public ICompressSetCoderPropertiesOpt,
+  public ICompressGetInStreamProcessedSize,
+  public CMyUnknownImp
+{
+  friend class CCompressWorker;
+  
+  Z7_COM_UNKNOWN_IMP_6(
+      IParallelCompressor,
+      ICompressCoder,
+      ICompressSetCoderProperties,
+      ICompressWriteCoderProperties,
+      ICompressSetCoderPropertiesOpt,
+      ICompressGetInStreamProcessedSize)
+
+public:
+  Z7_IFACE_COM7_IMP(IParallelCompressor)
+  Z7_IFACE_COM7_IMP(ICompressCoder)
+  Z7_IFACE_COM7_IMP(ICompressSetCoderProperties)
+  Z7_IFACE_COM7_IMP(ICompressWriteCoderProperties)
+  Z7_IFACE_COM7_IMP(ICompressSetCoderPropertiesOpt)
+  Z7_IFACE_COM7_IMP(ICompressGetInStreamProcessedSize)
+
+private:
   UInt32 _numThreads;
   UInt32 _compressionLevel;
   UInt64 _segmentSize;
@@ -95,7 +115,7 @@ Z7_CLASS_IMP_COM_6(
   NWindows::NSynchronization::CCriticalSection _criticalSection;
   NWindows::NSynchronization::CManualResetEvent _completeEvent;
   CMethodId _methodId;
-  CObjectVector<CProperty> _properties;
+  CObjectVector<CProp> _properties;
   UInt32 _itemsCompleted;
   UInt32 _itemsFailed;
   UInt64 _totalInSize;
@@ -130,19 +150,18 @@ public:
   ~CParallelCompressor();
   HRESULT Init();
   void Cleanup();
-  HRESULT SetPassword(const wchar_t *password);
-  HRESULT SetVolumeSize(UInt64 volumeSize);
-  HRESULT SetVolumePrefix(const wchar_t *prefix);
-  HRESULT SetSolidMode(bool solid);
-  HRESULT SetSolidBlockSize(UInt32 numFilesPerBlock);
-  HRESULT GetDetailedStatistics(CParallelStatistics *stats);
-  HRESULT SetProgressUpdateInterval(UInt32 intervalMs);
 };
 
-Z7_CLASS_IMP_COM_1(
-  CParallelStreamQueue,
-  IParallelStreamQueue
-)
+Z7_class_final(CParallelStreamQueue) :
+  public IParallelStreamQueue,
+  public CMyUnknownImp
+{
+  Z7_COM_UNKNOWN_IMP_1(IParallelStreamQueue)
+
+public:
+  Z7_IFACE_COM7_IMP(IParallelStreamQueue)
+
+private:
   CMyComPtr<IParallelCompressor> _compressor;
   CObjectVector<CParallelInputItem> _queuedItems;
   UInt32 _maxQueueSize;

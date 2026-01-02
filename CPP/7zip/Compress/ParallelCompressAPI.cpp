@@ -17,8 +17,9 @@ class CCallbackWrapper :
   public CMyUnknownImp
 {
 public:
-  Z7_IFACES_IMP_UNK_1(IParallelCompressCallback)
+  Z7_COM_UNKNOWN_IMP_1(IParallelCompressCallback)
   
+public:
   ParallelProgressCallback _progressCallback;
   ParallelErrorCallback _errorCallback;
   ParallelLookAheadCallback _lookAheadCallback;
@@ -27,71 +28,73 @@ public:
   CCallbackWrapper(): _progressCallback(NULL), _errorCallback(NULL), 
       _lookAheadCallback(NULL), _userData(NULL) {}
   
-  Z7_COM7F_IMF(OnItemStart(UInt32 itemIndex, const wchar_t *name))
-  {
-    return S_OK;
-  }
-  
-  Z7_COM7F_IMF(OnItemProgress(UInt32 itemIndex, UInt64 inSize, UInt64 outSize))
-  {
-    if (_progressCallback)
-      _progressCallback(itemIndex, inSize, outSize, _userData);
-    return S_OK;
-  }
-  
-  Z7_COM7F_IMF(OnItemComplete(UInt32 itemIndex, HRESULT result, UInt64 inSize, UInt64 outSize))
-  {
-    if (_progressCallback)
-      _progressCallback(itemIndex, inSize, outSize, _userData);
-    return S_OK;
-  }
-  
-  Z7_COM7F_IMF(OnError(UInt32 itemIndex, HRESULT errorCode, const wchar_t *message))
-  {
-    if (_errorCallback)
-      _errorCallback(itemIndex, errorCode, message, _userData);
-    return S_OK;
-  }
-  
-  Z7_COM7F_IMF2(Bool, ShouldCancel())
-  {
-    return false;
-  }
-  
-  Z7_COM7F_IMF(GetNextItems(UInt32 currentIndex, UInt32 lookAheadCount, 
-      CParallelInputItem *items, UInt32 *itemsReturned))
-  {
-    if (itemsReturned)
-      *itemsReturned = 0;
-    if (!_lookAheadCallback || !items)
-      return S_OK;
-    ParallelInputItemC cItems[16];
-    UInt32 count = 0;
-    HRESULT hr = _lookAheadCallback(currentIndex, lookAheadCount < 16 ? lookAheadCount : 16, 
-        cItems, &count, _userData);
-    if (SUCCEEDED(hr) && count > 0)
-    {
-      for (UInt32 i = 0; i < count; i++)
-      {
-        items[i].InStream = NULL;
-        items[i].Name = cItems[i].Name;
-        items[i].Size = cItems[i].Size;
-        items[i].Attributes = 0;
-        items[i].UserData = cItems[i].UserData;
-        if (cItems[i].Data && cItems[i].DataSize > 0)
-        {
-          CBufInStream *streamSpec = new CBufInStream;
-          CMyComPtr<ISequentialInStream> stream = streamSpec;
-          streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
-          items[i].InStream = stream.Detach();
-        }
-      }
-      if (itemsReturned)
-        *itemsReturned = count;
-    }
-    return hr;
-  }
+  Z7_IFACE_COM7_IMP(IParallelCompressCallback)
 };
+
+Z7_COM7F_IMF(CCallbackWrapper::OnItemStart(UInt32 itemIndex, const wchar_t *name))
+{
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCallbackWrapper::OnItemProgress(UInt32 itemIndex, UInt64 inSize, UInt64 outSize))
+{
+  if (_progressCallback)
+    _progressCallback(itemIndex, inSize, outSize, _userData);
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCallbackWrapper::OnItemComplete(UInt32 itemIndex, HRESULT result, UInt64 inSize, UInt64 outSize))
+{
+  if (_progressCallback)
+    _progressCallback(itemIndex, inSize, outSize, _userData);
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCallbackWrapper::OnError(UInt32 itemIndex, HRESULT errorCode, const wchar_t *message))
+{
+  if (_errorCallback)
+    _errorCallback(itemIndex, errorCode, message, _userData);
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCallbackWrapper::ShouldCancel())
+{
+  return S_FALSE;  // S_FALSE means "don't cancel", S_OK means "cancel"
+}
+
+Z7_COM7F_IMF(CCallbackWrapper::GetNextItems(UInt32 currentIndex, UInt32 lookAheadCount, 
+    CParallelInputItem *items, UInt32 *itemsReturned))
+{
+  if (itemsReturned)
+    *itemsReturned = 0;
+  if (!_lookAheadCallback || !items)
+    return S_OK;
+  ParallelInputItemC cItems[16];
+  UInt32 count = 0;
+  HRESULT hr = _lookAheadCallback(currentIndex, lookAheadCount < 16 ? lookAheadCount : 16, 
+      cItems, &count, _userData);
+  if (SUCCEEDED(hr) && count > 0)
+  {
+    for (UInt32 i = 0; i < count; i++)
+    {
+      items[i].InStream = NULL;
+      items[i].Name = cItems[i].Name;
+      items[i].Size = cItems[i].Size;
+      items[i].Attributes = 0;
+      items[i].UserData = cItems[i].UserData;
+      if (cItems[i].Data && cItems[i].DataSize > 0)
+      {
+        CBufInStream *streamSpec = new CBufInStream;
+        CMyComPtr<ISequentialInStream> stream = streamSpec;
+        streamSpec->Init((const Byte*)cItems[i].Data, cItems[i].DataSize, NULL);
+        items[i].InStream = stream.Detach();
+      }
+    }
+    if (itemsReturned)
+      *itemsReturned = count;
+  }
+  return hr;
+}
 
 // Internal wrapper structure
 struct ParallelCompressorWrapper

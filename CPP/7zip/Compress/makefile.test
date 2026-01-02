@@ -4,6 +4,7 @@ PROG_E2E = ParallelE2ETest
 PROG_PARITY = ParallelFeatureParityTest
 PROG_INTEGRATION = ParallelIntegrationTest
 PROG_SOLID_MULTIVOLUME = ParallelSolidMultiVolumeTest
+PROG_SECURITY = ParallelSecurityTest
 CXX = g++
 CXXFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DNDEBUG
 LDFLAGS = -lpthread
@@ -40,6 +41,12 @@ OBJS_INTEGRATION = \
 
 OBJS_SOLID_MULTIVOLUME = \
   ParallelSolidMultiVolumeTest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_SECURITY = \
+  ParallelSecurityTest.o \
   ParallelCompressor.o \
   ParallelCompressAPI.o \
   ParallelCompressorRegister.o \
@@ -81,7 +88,7 @@ C_OBJS = \
   ../../../C/Lzma2Enc.o \
   ../../../C/Threads.o \
 
-all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME)
+all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME) $(PROG_SECURITY)
 
 $(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG) $^ $(LDFLAGS)
@@ -101,6 +108,9 @@ $(PROG_INTEGRATION): $(OBJS_INTEGRATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRE
 $(PROG_SOLID_MULTIVOLUME): $(OBJS_SOLID_MULTIVOLUME) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG_SOLID_MULTIVOLUME) $^ $(LDFLAGS)
 
+$(PROG_SECURITY): $(OBJS_SECURITY) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_SECURITY) $^ $(LDFLAGS)
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
@@ -108,15 +118,16 @@ $(PROG_SOLID_MULTIVOLUME): $(OBJS_SOLID_MULTIVOLUME) $(COMMON_OBJS) $(WINDOWS_OB
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME) $(PROG_SECURITY) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
 	rm -f test_*.7z test_file*.txt
 
-test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME)
+test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME) $(PROG_SECURITY)
 	./$(PROG)
 	./$(PROG_VALIDATION)
 	./$(PROG_E2E)
 	./$(PROG_PARITY)
 	./$(PROG_INTEGRATION)
 	./$(PROG_SOLID_MULTIVOLUME)
+	./$(PROG_SECURITY)
 
 .PHONY: all clean test

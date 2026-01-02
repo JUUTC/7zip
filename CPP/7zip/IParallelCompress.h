@@ -5,6 +5,7 @@
 
 #include "IStream.h"
 #include "ICoder.h"
+#include "Common/MethodId.h"
 
 Z7_PURE_INTERFACES_BEGIN
 
