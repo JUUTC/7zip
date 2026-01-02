@@ -63,6 +63,9 @@ HRESULT ParallelCompressor_SetPassword(
     const wchar_t *password);
 HRESULT ParallelCompressor_SetSegmentSize(ParallelCompressorHandle handle, UInt64 segmentSize);
 HRESULT ParallelCompressor_SetVolumeSize(ParallelCompressorHandle handle, UInt64 volumeSize);
+HRESULT ParallelCompressor_SetVolumePrefix(ParallelCompressorHandle handle, const wchar_t *prefix);
+HRESULT ParallelCompressor_SetSolidMode(ParallelCompressorHandle handle, int enabled);
+HRESULT ParallelCompressor_SetSolidBlockSize(ParallelCompressorHandle handle, UInt32 numFilesPerBlock);
 HRESULT ParallelCompressor_SetCallbacks(
     ParallelCompressorHandle handle,
     ParallelProgressCallback progressCallback,
