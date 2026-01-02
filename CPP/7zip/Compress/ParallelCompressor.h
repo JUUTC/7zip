@@ -17,6 +17,7 @@
 #include "../Archive/7z/7zOut.h"
 #include "../Archive/7z/7zItem.h"
 #include "../Archive/7z/7zCompressionMode.h"
+#include "../Archive/7z/7zHeader.h"
 
 namespace NCompress {
 namespace NParallel {
@@ -52,7 +53,7 @@ public:
   NWindows::NSynchronization::CAutoResetEvent StartEvent;
   NWindows::CThread Thread;
   CCompressionJob *CurrentJob;
-  bool StopFlag;
+  volatile bool StopFlag;
   
   CCompressWorker(): Compressor(NULL), ThreadIndex(0), CurrentJob(NULL), StopFlag(false) {}
   
@@ -78,11 +79,11 @@ Z7_CLASS_IMP_COM_6(
   CByteBuffer _encryptionKey;
   CByteBuffer _encryptionIV;
   CMyComPtr<IParallelCompressCallback> _callback;
+  CMyComPtr<ICompressProgressInfo> _progress;
   CObjectVector<CCompressWorker> _workers;
   CObjectVector<CCompressionJob> _jobs;
   UInt32 _nextJobIndex;
   NWindows::NSynchronization::CCriticalSection _criticalSection;
-  NWindows::NSynchronization::CSemaphore _jobSemaphore;
   NWindows::NSynchronization::CManualResetEvent _completeEvent;
   CMethodId _methodId;
   CObjectVector<CProperty> _properties;

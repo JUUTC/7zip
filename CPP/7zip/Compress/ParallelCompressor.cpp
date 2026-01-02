@@ -101,18 +101,18 @@ HRESULT CCompressWorker::ProcessJob()
   return Compressor->CompressJob(*CurrentJob, NULL);
 }
 
-CParallelCompressor::CParallelCompressor():
+CParallelCompressor::CParallelCompressor()
   : _numThreads(1)
   , _compressionLevel(5)
   , _segmentSize(0)
   , _encryptionEnabled(false)
   , _nextJobIndex(0)
+  , _methodId(NArchive::N7z::k_LZMA)
   , _itemsCompleted(0)
   , _itemsFailed(0)
   , _totalInSize(0)
   , _totalOutSize(0)
 {
-  _methodId = { 0x030101 }; // LZMA
 }
 
 CParallelCompressor::~CParallelCompressor()
@@ -132,7 +132,6 @@ HRESULT CParallelCompressor::Init()
     RINOK(worker.StartEvent.Create());
     RINOK(worker.Create());
   }
-  RINOK(_jobSemaphore.Create(0, 0x10000));
   RINOK(_completeEvent.Create(true));
   return S_OK;
 }
@@ -149,6 +148,7 @@ void CParallelCompressor::Cleanup()
   }
   _workers.Clear();
   _jobs.Clear();
+  _progress.Release();
 }
 
 Z7_COM7F_IMF(CParallelCompressor::Code(
@@ -298,25 +298,22 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
   if (!encoder)
     return E_FAIL;
     
-  // Notify start
   if (_callback)
     _callback->OnItemStart(job.ItemIndex, job.Name);
+  
+  if (_callback)
+  {
+    if (_callback->ShouldCancel())
+      return E_ABORT;
+  }
     
-  // Create memory output stream - use the existing class
-  CBufPtrSeqOutStream *outStreamSpec = new CBufPtrSeqOutStream;
+  CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
-  // Estimate output size (input size * 1.5 for worst case)
-  size_t estimatedSize = (size_t)(job.InSize > 0 ? job.InSize + job.InSize / 2 : 1 << 20);
-  job.CompressedData.Alloc(estimatedSize);
-  outStreamSpec->Init(job.CompressedData, estimatedSize);
-  
-  // Progress callback
   CLocalProgress *progressSpec = new CLocalProgress;
   CMyComPtr<ICompressProgressInfo> progress = progressSpec;
   progressSpec->Init(NULL, false);
   
-  // Compress
   UInt64 inSize = job.InSize;
   HRESULT result = encoder->Code(
       job.InStream,
@@ -327,14 +324,13 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
       
   if (result == S_OK)
   {
-    job.OutSize = outStreamSpec->GetPos();
-    if (job.OutSize < estimatedSize)
+    job.OutSize = outStreamSpec->GetSize();
+    job.CompressedData.Alloc((size_t)job.OutSize);
+    if (job.OutSize > 0)
     {
-      job.CompressedData.ChangeSize_KeepData((size_t)job.OutSize, (size_t)job.OutSize);
+      memcpy(job.CompressedData, outStreamSpec->GetBuffer(), (size_t)job.OutSize);
     }
-    if (_encryptionEnabled && _encryptionKey.Size() > 0)
-    {
-    }
+    
     if (_callback)
       _callback->OnItemProgress(job.ItemIndex, job.InSize, job.OutSize);
   }
@@ -376,6 +372,10 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
     }
     if (_callback)
       _callback->OnItemComplete(job->ItemIndex, job->Result, job->InSize, job->OutSize);
+    
+    if (_progress)
+      _progress->SetRatioInfo(&_totalInSize, &_totalOutSize);
+    
     if (_itemsCompleted >= _jobs.Size())
       _completeEvent.Set();
   }
@@ -521,7 +521,8 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     RINOK(Init());
   }
   
-  // Reset state
+  _progress = progress;
+  
   _nextJobIndex = 0;
   _itemsCompleted = 0;
   _itemsFailed = 0;
@@ -529,7 +530,6 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   _totalOutSize = 0;
   _completeEvent.Reset();
   
-  // Create jobs
   _jobs.Clear();
   for (UInt32 i = 0; i < numItems; i++)
   {
@@ -582,14 +582,15 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   
   if (successCount == 0)
   {
-    // All jobs failed
+    _progress.Release();
     if (_callback)
       _callback->OnError(0, E_FAIL, L"All compression jobs failed");
     return E_FAIL;
   }
   
-  // Create 7z archive with successfully compressed data
   HRESULT archiveResult = Create7zArchive(outStream, _jobs);
+  _progress.Release();
+  
   if (archiveResult != S_OK)
   {
     if (_callback)
@@ -597,7 +598,6 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     return archiveResult;
   }
   
-  // Return S_FALSE if some jobs failed, S_OK if all succeeded
   if (_itemsFailed > 0)
     return S_FALSE;
   return S_OK;
@@ -635,17 +635,6 @@ Z7_COM7F_IMF(CParallelCompressor::WriteCoderProperties(ISequentialOutStream *out
 Z7_COM7F_IMF(CParallelCompressor::SetCoderPropertiesOpt(
     const PROPID *propIDs, const PROPVARIANT *props, UInt32 numProps))
 {
-  for (UInt32 i = 0; i < numProps; i++)
-  {
-    PROPID propID = propIDs[i];
-    const PROPVARIANT &prop = props[i];
-    if (propID == NCoderPropID::kExpectedDataSize)
-    {
-      if (prop.vt == VT_UI8)
-      {
-      }
-    }
-  }
   return SetCoderProperties(propIDs, props, numProps);
 }
 
@@ -674,7 +663,7 @@ Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
   return S_OK;
 }
 
-CParallelStreamQueue::CParallelStreamQueue():
+CParallelStreamQueue::CParallelStreamQueue()
   : _maxQueueSize(1000)
   , _processing(false)
   , _itemsProcessed(0)
