@@ -61,6 +61,9 @@ Z7_IFACE_CONSTR_CODER(IParallelCompressCallback2, 0xA4)
   x(SetPassword(const wchar_t *password)) \
   x(SetSegmentSize(UInt64 segmentSize)) \
   x(SetVolumeSize(UInt64 volumeSize)) \
+  x(SetVolumePrefix(const wchar_t *prefix)) \
+  x(SetSolidMode(bool solid)) \
+  x(SetSolidBlockSize(UInt32 numFilesPerBlock)) \
   x(CompressMultiple(CParallelInputItem *items, UInt32 numItems, \
       ISequentialOutStream *outStream, ICompressProgressInfo *progress)) \
   x(GetStatistics(UInt32 *itemsCompleted, UInt32 *itemsFailed, \

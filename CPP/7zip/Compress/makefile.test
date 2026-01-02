@@ -3,6 +3,7 @@ PROG_VALIDATION = ParallelCompressorValidation
 PROG_E2E = ParallelE2ETest
 PROG_PARITY = ParallelFeatureParityTest
 PROG_INTEGRATION = ParallelIntegrationTest
+PROG_SOLID_MULTIVOLUME = ParallelSolidMultiVolumeTest
 CXX = g++
 CXXFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DNDEBUG
 LDFLAGS = -lpthread
@@ -33,6 +34,12 @@ OBJS_PARITY = \
 
 OBJS_INTEGRATION = \
   ParallelIntegrationTest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_SOLID_MULTIVOLUME = \
+  ParallelSolidMultiVolumeTest.o \
   ParallelCompressor.o \
   ParallelCompressAPI.o \
   ParallelCompressorRegister.o \
@@ -74,7 +81,7 @@ C_OBJS = \
   ../../../C/Lzma2Enc.o \
   ../../../C/Threads.o \
 
-all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION)
+all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME)
 
 $(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG) $^ $(LDFLAGS)
@@ -91,6 +98,9 @@ $(PROG_PARITY): $(OBJS_PARITY) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $
 $(PROG_INTEGRATION): $(OBJS_INTEGRATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG_INTEGRATION) $^ $(LDFLAGS)
 
+$(PROG_SOLID_MULTIVOLUME): $(OBJS_SOLID_MULTIVOLUME) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_SOLID_MULTIVOLUME) $^ $(LDFLAGS)
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
@@ -98,14 +108,15 @@ $(PROG_INTEGRATION): $(OBJS_INTEGRATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRE
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
 	rm -f test_*.7z test_file*.txt
 
-test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION)
+test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) $(PROG_SOLID_MULTIVOLUME)
 	./$(PROG)
 	./$(PROG_VALIDATION)
 	./$(PROG_E2E)
 	./$(PROG_PARITY)
 	./$(PROG_INTEGRATION)
+	./$(PROG_SOLID_MULTIVOLUME)
 
 .PHONY: all clean test

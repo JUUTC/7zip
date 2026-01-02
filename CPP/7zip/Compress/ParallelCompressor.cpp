@@ -16,6 +16,7 @@
 #include "../Common/MethodProps.h"
 #include "../Common/RegisterCodec.h"
 #include "../Common/FilterCoder.h"
+#include "../Common/MultiOutStream.h"
 
 using namespace NWindows;
 
@@ -158,6 +159,8 @@ CParallelCompressor::CParallelCompressor()
   , _compressionLevel(5)
   , _segmentSize(0)
   , _volumeSize(0)
+  , _solidMode(false)
+  , _solidBlockSize(0)
   , _encryptionEnabled(false)
   , _nextJobIndex(0)
   , _methodId(NArchive::N7z::k_LZMA)
@@ -319,6 +322,27 @@ Z7_COM7F_IMF(CParallelCompressor::SetSegmentSize(UInt64 segmentSize))
 Z7_COM7F_IMF(CParallelCompressor::SetVolumeSize(UInt64 volumeSize))
 {
   _volumeSize = volumeSize;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetVolumePrefix(const wchar_t *prefix))
+{
+  if (prefix && *prefix)
+    _volumePrefix = prefix;
+  else
+    _volumePrefix.Empty();
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetSolidMode(bool solid))
+{
+  _solidMode = solid;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetSolidBlockSize(UInt32 numFilesPerBlock))
+{
+  _solidBlockSize = numFilesPerBlock;
   return S_OK;
 }
 
@@ -642,12 +666,197 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
   return S_OK;
 }
 
+// Solid mode compression - all files in a single compressed folder
+// This provides better compression ratio at the cost of parallel processing
+HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStream,
+    CParallelInputItem *items, UInt32 numItems)
+{
+  using namespace NArchive::N7z;
+  
+  // Handle multi-volume output for solid archives
+  ISequentialOutStream *finalOutStream = outStream;
+  CMyComPtr<CMultiOutStream> multiStream;
+  
+  if (_volumeSize > 0 && !_volumePrefix.IsEmpty())
+  {
+    multiStream = new CMultiOutStream();
+    CRecordVector<UInt64> volumeSizes;
+    volumeSizes.Add(_volumeSize);
+    multiStream->Init(volumeSizes);
+    multiStream->Prefix = us2fs(_volumePrefix);
+    multiStream->NeedDelete = false;
+    finalOutStream = multiStream;
+  }
+  
+  COutArchive outArchive;
+  RINOK(outArchive.Create_and_WriteStartPrefix(finalOutStream))
+  
+  CArchiveDatabaseOut db;
+  db.Clear();
+  
+  // Calculate total uncompressed size
+  UInt64 totalUnpackSize = 0;
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    totalUnpackSize += items[i].Size;
+  }
+  
+  // Create concatenated input stream for solid compression
+  // We'll use a memory buffer to concatenate all input streams
+  CByteBuffer solidBuffer;
+  solidBuffer.Alloc((size_t)totalUnpackSize);
+  
+  UInt64 offset = 0;
+  UInt32 crcTable[numItems];
+  UInt64 sizes[numItems];
+  
+  // Read all input streams into the solid buffer, computing CRCs
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    UInt32 crc = CRC_INIT_VAL;
+    UInt64 remaining = items[i].Size;
+    UInt64 itemOffset = offset;
+    
+    while (remaining > 0)
+    {
+      UInt32 toRead = (UInt32)(remaining > (1 << 20) ? (1 << 20) : remaining);
+      UInt32 processed = 0;
+      RINOK(items[i].InStream->Read(solidBuffer + offset, toRead, &processed))
+      if (processed == 0)
+        break;
+      
+      crc = CrcUpdate(crc, solidBuffer + offset, processed);
+      offset += processed;
+      remaining -= processed;
+    }
+    
+    crcTable[i] = CRC_GET_DIGEST(crc);
+    sizes[i] = offset - itemOffset;
+  }
+  
+  // Create encoder and compress the solid block
+  CMyComPtr<ICompressCoder> encoder;
+  RINOK(CreateEncoder(&encoder));
+  
+  // Set up input stream from solid buffer
+  CBufInStream *bufInStreamSpec = new CBufInStream;
+  CMyComPtr<ISequentialInStream> bufInStream = bufInStreamSpec;
+  bufInStreamSpec->Init(solidBuffer, (size_t)offset, NULL);
+  
+  // Compress to memory buffer
+  CDynBufSeqOutStream *compressedStreamSpec = new CDynBufSeqOutStream;
+  CMyComPtr<ISequentialOutStream> compressedStream = compressedStreamSpec;
+  
+  UInt64 inSize = offset;
+  RINOK(encoder->Code(bufInStream, compressedStream, &inSize, NULL, _progress))
+  
+  UInt64 compressedSize = compressedStreamSpec->GetSize();
+  
+  // Write compressed data to archive
+  RINOK(WriteStream(finalOutStream, compressedStreamSpec->GetBuffer(), (size_t)compressedSize))
+  
+  // Get encoder properties
+  CByteBuffer encoderProps;
+  CMyComPtr<ICompressWriteCoderProperties> writeProps;
+  encoder.QueryInterface(IID_ICompressWriteCoderProperties, &writeProps);
+  if (writeProps)
+  {
+    CDynBufSeqOutStream *propsStreamSpec = new CDynBufSeqOutStream;
+    CMyComPtr<ISequentialOutStream> propsStream = propsStreamSpec;
+    writeProps->WriteCoderProperties(propsStream);
+    encoderProps.Alloc(propsStreamSpec->GetSize());
+    memcpy(encoderProps, propsStreamSpec->GetBuffer(), propsStreamSpec->GetSize());
+  }
+  
+  // Build database with single solid folder containing all files
+  CFolder folder;
+  CCoderInfo &coder = folder.Coders.AddNew();
+  coder.MethodID = _methodId;
+  coder.NumStreams = 1;
+  if (encoderProps.Size() > 0)
+  {
+    coder.Props.Alloc(encoderProps.Size());
+    memcpy(coder.Props, encoderProps, encoderProps.Size());
+  }
+  
+  db.Folders.Add(folder);
+  db.PackSizes.Add(compressedSize);
+  db.NumUnpackStreamsVector.Add(numItems);  // Multiple files in one folder = solid
+  
+  // Add unpack sizes for all files
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    db.CoderUnpackSizes.Add(sizes[i]);
+  }
+  
+  // Add file items
+  for (UInt32 i = 0; i < numItems; i++)
+  {
+    CFileItem fileItem;
+    fileItem.Size = sizes[i];
+    fileItem.HasStream = (sizes[i] > 0);
+    fileItem.IsDir = false;
+    fileItem.CrcDefined = true;
+    fileItem.Crc = crcTable[i];
+    
+    CFileItem2 fileItem2;
+    fileItem2.MTime = items[i].ModificationTime.dwLowDateTime | 
+                      ((UInt64)items[i].ModificationTime.dwHighDateTime << 32);
+    fileItem2.MTimeDefined = true;
+    fileItem2.AttribDefined = (items[i].Attributes != 0);
+    fileItem2.Attrib = items[i].Attributes;
+    fileItem2.CTimeDefined = false;
+    fileItem2.ATimeDefined = false;
+    fileItem2.StartPosDefined = false;
+    fileItem2.IsAnti = false;
+    
+    UString name = items[i].Name ? items[i].Name : L"";
+    db.AddFile(fileItem, fileItem2, name);
+  }
+  
+  // Update statistics
+  _itemsCompleted = numItems;
+  _itemsFailed = 0;
+  _totalInSize = offset;
+  _totalOutSize = compressedSize;
+  
+  CCompressionMethodMode method;
+  PrepareCompressionMethod(method);
+  
+  CHeaderOptions headerOptions;
+  headerOptions.CompressMainHeader = true;
+  
+  RINOK(outArchive.WriteDatabase(
+      EXTERNAL_CODECS_LOC_VARS
+      db,
+      &method,
+      headerOptions))
+  
+  outArchive.Close();
+  
+  // Finalize multi-volume if used
+  if (multiStream)
+  {
+    unsigned numVolumes = 0;
+    RINOK(multiStream->FinalFlush_and_CloseFiles(numVolumes))
+  }
+  
+  return S_OK;
+}
+
 Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     CParallelInputItem *items, UInt32 numItems,
     ISequentialOutStream *outStream, ICompressProgressInfo *progress))
 {
   if (!items || numItems == 0 || !outStream)
     return E_INVALIDARG;
+    
+  // Handle solid mode - use single-stream compression through 7z folder
+  if (_solidMode)
+  {
+    return Create7zSolidArchive(outStream, items, numItems);
+  }
+    
   if (numItems == 1 && _numThreads <= 1)
     return CompressSingleStream(items[0].InStream, outStream, 
         items[0].Size > 0 ? &items[0].Size : NULL, progress);
@@ -727,7 +936,32 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
     return E_FAIL;
   }
   
-  HRESULT archiveResult = Create7zArchive(outStream, _jobs);
+  // Handle multi-volume output
+  ISequentialOutStream *finalOutStream = outStream;
+  CMyComPtr<CMultiOutStream> multiStream;
+  
+  if (_volumeSize > 0 && !_volumePrefix.IsEmpty())
+  {
+    multiStream = new CMultiOutStream();
+    CRecordVector<UInt64> volumeSizes;
+    volumeSizes.Add(_volumeSize);  // All volumes same size
+    multiStream->Init(volumeSizes);
+    multiStream->Prefix = us2fs(_volumePrefix);
+    multiStream->NeedDelete = false;
+    finalOutStream = multiStream;
+  }
+  
+  HRESULT archiveResult = Create7zArchive(finalOutStream, _jobs);
+  
+  // Finalize multi-volume if used
+  if (multiStream)
+  {
+    unsigned numVolumes = 0;
+    HRESULT volumeResult = multiStream->FinalFlush_and_CloseFiles(numVolumes);
+    if (archiveResult == S_OK)
+      archiveResult = volumeResult;
+  }
+  
   _progress.Release();
   
   if (archiveResult != S_OK)

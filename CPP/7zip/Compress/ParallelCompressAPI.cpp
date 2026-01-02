@@ -186,6 +186,30 @@ HRESULT ParallelCompressor_SetVolumeSize(ParallelCompressorHandle handle, UInt64
   return wrapper->Compressor->SetVolumeSize(volumeSize);
 }
 
+HRESULT ParallelCompressor_SetVolumePrefix(ParallelCompressorHandle handle, const wchar_t *prefix)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetVolumePrefix(prefix);
+}
+
+HRESULT ParallelCompressor_SetSolidMode(ParallelCompressorHandle handle, int enabled)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetSolidMode(enabled != 0);
+}
+
+HRESULT ParallelCompressor_SetSolidBlockSize(ParallelCompressorHandle handle, UInt32 numFilesPerBlock)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetSolidBlockSize(numFilesPerBlock);
+}
+
 HRESULT ParallelCompressor_SetCallbacks(
     ParallelCompressorHandle handle,
     ParallelProgressCallback progressCallback,

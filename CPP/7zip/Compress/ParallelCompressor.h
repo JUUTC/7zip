@@ -80,6 +80,9 @@ Z7_CLASS_IMP_COM_6(
   UInt32 _compressionLevel;
   UInt64 _segmentSize;
   UInt64 _volumeSize;        // Size for multi-volume archives (0 = single volume)
+  UString _volumePrefix;     // Prefix for multi-volume files (e.g., "archive.7z" -> "archive.7z.001")
+  bool _solidMode;           // Enable solid compression (files share dictionary)
+  UInt32 _solidBlockSize;    // Number of files per solid block (0 = all files in one block)
   bool _encryptionEnabled;
   UString _password;         // Password for encryption
   CByteBuffer _encryptionKey;
@@ -111,11 +114,15 @@ Z7_CLASS_IMP_COM_6(
   HRESULT CompressJob(CCompressionJob &job, ICompressCoder *encoder);
   HRESULT CompressSingleStream(ISequentialInStream *inStream, ISequentialOutStream *outStream,
       const UInt64 *inSize, ICompressProgressInfo *progress);
+  HRESULT CompressSolidBlock(CParallelInputItem *items, UInt32 numItems,
+      ISequentialOutStream *outStream, ICompressProgressInfo *progress);
   CCompressionJob* GetNextJob();
   void NotifyJobComplete(CCompressionJob *job);
   HRESULT WriteJobToStream(CCompressionJob &job, ISequentialOutStream *outStream);
   HRESULT Create7zArchive(ISequentialOutStream *outStream,
       const CObjectVector<CCompressionJob> &jobs);
+  HRESULT Create7zSolidArchive(ISequentialOutStream *outStream,
+      CParallelInputItem *items, UInt32 numItems);
   void PrepareCompressionMethod(NArchive::N7z::CCompressionMethodMode &method);
   void UpdateDetailedStats(CParallelStatistics &stats);
 public:
@@ -125,6 +132,9 @@ public:
   void Cleanup();
   HRESULT SetPassword(const wchar_t *password);
   HRESULT SetVolumeSize(UInt64 volumeSize);
+  HRESULT SetVolumePrefix(const wchar_t *prefix);
+  HRESULT SetSolidMode(bool solid);
+  HRESULT SetSolidBlockSize(UInt32 numFilesPerBlock);
   HRESULT GetDetailedStatistics(CParallelStatistics *stats);
   HRESULT SetProgressUpdateInterval(UInt32 intervalMs);
 };

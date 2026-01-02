@@ -69,8 +69,26 @@ ParallelCompressor_Destroy(h);
 - ✅ Progress callbacks and error handling
 - ✅ CRC32 calculation for data integrity verification
 - ✅ AES-256 encryption with password-based key derivation (data + headers)
-- ⚠️ Non-solid mode only (files compressed independently; solid mode not implemented)
-- ❌ Multi-volume archives not implemented (API stub only)
+- ✅ Solid mode compression (files share dictionary for better ratio)
+- ✅ Multi-volume archives (split large archives into multiple files)
+
+### Solid Mode
+Solid mode combines multiple files into a single compressed stream, enabling better compression ratios for similar files:
+
+```cpp
+compressor.SetSolidMode(true);
+compressor.SetSolidBlockSize(100);  // 100 files per block (0 = all in one block)
+compressor.CompressMultiple(items, count, outputStream, callback);
+```
+
+### Multi-Volume Archives
+Split large archives across multiple files:
+
+```cpp
+compressor.SetVolumeSize(100 * 1024 * 1024);  // 100 MB per volume
+compressor.SetVolumePrefix(L"archive.7z");     // Creates archive.7z.001, .002, etc.
+compressor.CompressMultiple(items, count, outputStream, callback);
+```
 
 ### Performance
 Typical speedup with 16 threads compared to sequential processing:
