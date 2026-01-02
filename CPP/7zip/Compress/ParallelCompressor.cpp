@@ -701,16 +701,29 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
     totalUnpackSize += items[i].Size;
   }
   
+  // Validate size to prevent excessive memory allocation
+  const UInt64 kMaxSolidSize = (UInt64)4 * 1024 * 1024 * 1024;  // 4 GB limit
+  if (totalUnpackSize > kMaxSolidSize)
+  {
+    return E_INVALIDARG;  // Size too large for solid compression
+  }
+  
   // Create concatenated input stream for solid compression
   // We'll use a memory buffer to concatenate all input streams
   CByteBuffer solidBuffer;
   solidBuffer.Alloc((size_t)totalUnpackSize);
   
   UInt64 offset = 0;
-  UInt32 crcTable[numItems];
-  UInt64 sizes[numItems];
+  
+  // Use vectors instead of VLAs for C++ compatibility
+  CRecordVector<UInt32> crcTable;
+  CRecordVector<UInt64> sizes;
+  crcTable.ClearAndSetSize(numItems);
+  sizes.ClearAndSetSize(numItems);
   
   // Read all input streams into the solid buffer, computing CRCs
+  const UInt32 kSolidReadBufferSize = 1 << 20;  // 1 MB
+  
   for (UInt32 i = 0; i < numItems; i++)
   {
     UInt32 crc = CRC_INIT_VAL;
@@ -719,7 +732,7 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
     
     while (remaining > 0)
     {
-      UInt32 toRead = (UInt32)(remaining > (1 << 20) ? (1 << 20) : remaining);
+      UInt32 toRead = (UInt32)(remaining > kSolidReadBufferSize ? kSolidReadBufferSize : remaining);
       UInt32 processed = 0;
       RINOK(items[i].InStream->Read(solidBuffer + offset, toRead, &processed))
       if (processed == 0)
