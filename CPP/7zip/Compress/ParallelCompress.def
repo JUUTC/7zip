@@ -1,0 +1,21 @@
+EXPORTS
+    ; Parallel Compressor API
+    ParallelCompressor_Create
+    ParallelCompressor_Destroy
+    ParallelCompressor_SetNumThreads
+    ParallelCompressor_SetCompressionLevel
+    ParallelCompressor_SetCompressionMethod
+    ParallelCompressor_SetEncryption
+    ParallelCompressor_SetSegmentSize
+    ParallelCompressor_SetCallbacks
+    ParallelCompressor_CompressMultiple
+    ParallelCompressor_CompressMultipleToMemory
+    
+    ; Parallel Stream Queue API
+    ParallelStreamQueue_Create
+    ParallelStreamQueue_Destroy
+    ParallelStreamQueue_SetMaxQueueSize
+    ParallelStreamQueue_AddStream
+    ParallelStreamQueue_StartProcessing
+    ParallelStreamQueue_WaitForCompletion
+    ParallelStreamQueue_GetStatus
