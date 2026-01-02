@@ -307,7 +307,8 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
       return E_ABORT;
   }
   
-  // Capture encoder properties for archive header
+  // Capture encoder properties for archive header (required for LZMA/LZMA2 decompression)
+  // Some codecs (like Copy) don't have properties - this is normal
   CMyComPtr<ICompressWriteCoderProperties> writeProps;
   encoder->QueryInterface(IID_ICompressWriteCoderProperties, (void **)&writeProps);
   if (writeProps)
@@ -315,12 +316,14 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
     CDynBufSeqOutStream *propsStreamSpec = new CDynBufSeqOutStream;
     CMyComPtr<ISequentialOutStream> propsStream = propsStreamSpec;
     HRESULT propsResult = writeProps->WriteCoderProperties(propsStream);
-    if (propsResult == S_OK)
+    if (propsResult == S_OK && propsStreamSpec->GetSize() > 0)
     {
       size_t propsSize = propsStreamSpec->GetSize();
       job.EncoderProps.Alloc(propsSize);
       memcpy(job.EncoderProps, propsStreamSpec->GetBuffer(), propsSize);
     }
+    // Note: If properties cannot be captured, EncoderProps remains empty
+    // This is normal for codecs that don't require properties (e.g., Copy)
   }
     
   CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
