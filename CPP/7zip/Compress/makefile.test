@@ -1,6 +1,8 @@
 PROG = ParallelCompressorTest
 PROG_VALIDATION = ParallelCompressorValidation
 PROG_E2E = ParallelE2ETest
+PROG_PARITY = ParallelFeatureParityTest
+PROG_INTEGRATION = ParallelIntegrationTest
 CXX = g++
 CXXFLAGS = -O2 -Wall -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -DNDEBUG
 LDFLAGS = -lpthread
@@ -19,6 +21,18 @@ OBJS_VALIDATION = \
 
 OBJS_E2E = \
   ParallelE2ETest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_PARITY = \
+  ParallelFeatureParityTest.o \
+  ParallelCompressor.o \
+  ParallelCompressAPI.o \
+  ParallelCompressorRegister.o \
+
+OBJS_INTEGRATION = \
+  ParallelIntegrationTest.o \
   ParallelCompressor.o \
   ParallelCompressAPI.o \
   ParallelCompressorRegister.o \
@@ -60,7 +74,7 @@ C_OBJS = \
   ../../../C/Lzma2Enc.o \
   ../../../C/Threads.o \
 
-all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E)
+all: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION)
 
 $(PROG): $(OBJS) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG) $^ $(LDFLAGS)
@@ -71,6 +85,12 @@ $(PROG_VALIDATION): $(OBJS_VALIDATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS
 $(PROG_E2E): $(OBJS_E2E) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
 	$(CXX) -o $(PROG_E2E) $^ $(LDFLAGS)
 
+$(PROG_PARITY): $(OBJS_PARITY) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_PARITY) $^ $(LDFLAGS)
+
+$(PROG_INTEGRATION): $(OBJS_INTEGRATION) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJS) StdAfx.o
+	$(CXX) -o $(PROG_INTEGRATION) $^ $(LDFLAGS)
+
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
@@ -78,12 +98,14 @@ $(PROG_E2E): $(OBJS_E2E) $(COMMON_OBJS) $(WINDOWS_OBJS) $(COMPRESS_OBJS) $(C_OBJ
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
+	rm -f $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION) *.o ../../Common/*.o ../../Windows/*.o ../Common/*.o ../../../C/*.o
 	rm -f test_*.7z test_file*.txt
 
-test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E)
+test: $(PROG) $(PROG_VALIDATION) $(PROG_E2E) $(PROG_PARITY) $(PROG_INTEGRATION)
 	./$(PROG)
 	./$(PROG_VALIDATION)
 	./$(PROG_E2E)
+	./$(PROG_PARITY)
+	./$(PROG_INTEGRATION)
 
 .PHONY: all clean test

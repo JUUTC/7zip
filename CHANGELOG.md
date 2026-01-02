@@ -17,8 +17,12 @@
 
 ### Current Limitations
 - Non-solid mode only (solid blocks not implemented)
-- Encryption API present but actual data encryption not implemented
 - Multi-volume archives not implemented (API stub only)
+
+### Security Features
+- AES-256 encryption with password-based key derivation
+- Both data content and archive headers can be encrypted
+- Uses standard 7-Zip encryption mechanism for compatibility
 
 ### Performance
 - 10-30x speedup for processing millions of small files

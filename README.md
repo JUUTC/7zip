@@ -68,8 +68,8 @@ ParallelCompressor_Destroy(h);
 - ✅ LZMA, LZMA2, BZip2, and Deflate compression methods
 - ✅ Progress callbacks and error handling
 - ✅ CRC32 calculation for data integrity verification
+- ✅ AES-256 encryption with password-based key derivation (data + headers)
 - ⚠️ Non-solid mode only (files compressed independently; solid mode not implemented)
-- ⚠️ Encryption API present but data encryption not yet implemented (metadata only)
 - ❌ Multi-volume archives not implemented (API stub only)
 
 ### Performance
