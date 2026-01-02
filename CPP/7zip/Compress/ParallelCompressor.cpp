@@ -306,6 +306,22 @@ HRESULT CParallelCompressor::CompressJob(CCompressionJob &job, ICompressCoder *e
     if (_callback->ShouldCancel())
       return E_ABORT;
   }
+  
+  // Capture encoder properties for archive header
+  CMyComPtr<ICompressWriteCoderProperties> writeProps;
+  encoder->QueryInterface(IID_ICompressWriteCoderProperties, (void **)&writeProps);
+  if (writeProps)
+  {
+    CDynBufSeqOutStream *propsStreamSpec = new CDynBufSeqOutStream;
+    CMyComPtr<ISequentialOutStream> propsStream = propsStreamSpec;
+    HRESULT propsResult = writeProps->WriteCoderProperties(propsStream);
+    if (propsResult == S_OK)
+    {
+      size_t propsSize = propsStreamSpec->GetSize();
+      job.EncoderProps.Alloc(propsSize);
+      memcpy(job.EncoderProps, propsStreamSpec->GetBuffer(), propsSize);
+    }
+  }
     
   CDynBufSeqOutStream *outStreamSpec = new CDynBufSeqOutStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
@@ -472,11 +488,17 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     
     db.AddFile(fileItem, fileItem2, job.Name);
     
-    // Create folder for each file
+    // Create folder for each file with encoder properties
     CFolder folder;
     CCoderInfo &coder = folder.Coders.AddNew();
     coder.MethodID = _methodId;
     coder.NumStreams = 1;
+    // Copy encoder properties (required for decompression)
+    if (job.EncoderProps.Size() > 0)
+    {
+      coder.Props.Alloc(job.EncoderProps.Size());
+      memcpy(coder.Props, job.EncoderProps, job.EncoderProps.Size());
+    }
     db.Folders.Add(folder);
     
     db.PackSizes.Add(packSizes[idx]);

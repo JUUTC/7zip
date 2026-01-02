@@ -37,6 +37,7 @@ struct CCompressionJob
   HRESULT Result;
   bool Completed;
   CByteBuffer CompressedData;
+  CByteBuffer EncoderProps;  // Encoder properties for archive header
   CCompressionJob(): ItemIndex(0), InSize(0), OutSize(0),
       Attributes(0), UserData(NULL), Result(S_OK), Completed(false)
   {
