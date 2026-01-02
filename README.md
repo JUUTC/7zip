@@ -67,9 +67,10 @@ ParallelCompressor_Destroy(h);
 - ✅ Standard 7z archive format output
 - ✅ LZMA, LZMA2, BZip2, and Deflate compression methods
 - ✅ Progress callbacks and error handling
-- ⚠️ Non-solid mode only (files are compressed independently without sharing dictionary data)
-- ❌ Encryption not yet integrated
-- ❌ Multi-volume archives not yet supported
+- ✅ CRC32 calculation for data integrity verification
+- ⚠️ Non-solid mode only (files compressed independently; solid mode not implemented)
+- ⚠️ Encryption API present but data encryption not yet implemented (metadata only)
+- ❌ Multi-volume archives not implemented (API stub only)
 
 ### Performance
 Typical speedup with 16 threads compared to sequential processing:

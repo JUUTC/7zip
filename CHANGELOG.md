@@ -16,10 +16,9 @@
 - Example code and test suite
 
 ### Current Limitations
-- Non-solid mode only (solid blocks conflict with parallelism)
-- Encryption not yet integrated
-- Multi-volume archives not yet supported
-- CRC calculation structure present but not fully implemented (may affect data integrity verification)
+- Non-solid mode only (solid blocks not implemented)
+- Encryption API present but actual data encryption not implemented
+- Multi-volume archives not implemented (API stub only)
 
 ### Performance
 - 10-30x speedup for processing millions of small files
