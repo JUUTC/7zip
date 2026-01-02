@@ -18,6 +18,10 @@
 #include "../Common/FilterCoder.h"
 #include "../Common/MultiOutStream.h"
 
+#ifndef E_POINTER
+#define E_POINTER ((HRESULT)0x80004003L)
+#endif
+
 using namespace NWindows;
 
 class CLocalProgress:
@@ -25,7 +29,9 @@ class CLocalProgress:
   public CMyUnknownImp
 {
 public:
-  Z7_IFACES_IMP_UNK_1(ICompressProgressInfo)
+  Z7_COM_UNKNOWN_IMP_1(ICompressProgressInfo)
+  
+public:
   ICompressProgressInfo *_progress;
   bool _inStartValueIsAssigned;
   UInt64 _inStartValue;
@@ -37,22 +43,24 @@ public:
     _inStartValue = 0;
   }
   
-  Z7_IFACE_IMP(ICompressProgressInfo::SetRatioInfo(const UInt64 *inSize, const UInt64 *outSize))
-  {
-    if (_progress)
-    {
-      UInt64 inSize2 = 0;
-      if (inSize)
-      {
-        inSize2 = *inSize;
-        if (_inStartValueIsAssigned)
-          inSize2 += _inStartValue;
-      }
-      return _progress->SetRatioInfo(_inStartValueIsAssigned && inSize ? &inSize2 : inSize, outSize);
-    }
-    return S_OK;
-  }
+  Z7_IFACE_COM7_IMP(ICompressProgressInfo)
 };
+
+Z7_COM7F_IMF(CLocalProgress::SetRatioInfo(const UInt64 *inSize, const UInt64 *outSize))
+{
+  if (_progress)
+  {
+    UInt64 inSize2 = 0;
+    if (inSize)
+    {
+      inSize2 = *inSize;
+      if (_inStartValueIsAssigned)
+        inSize2 += _inStartValue;
+    }
+    return _progress->SetRatioInfo(_inStartValueIsAssigned && inSize ? &inSize2 : inSize, outSize);
+  }
+  return S_OK;
+}
 
 // CRC-calculating input stream wrapper
 class CCrcInStream:
@@ -62,6 +70,7 @@ class CCrcInStream:
 public:
   Z7_COM_UNKNOWN_IMP_1(ISequentialInStream)
   
+public:
   CMyComPtr<ISequentialInStream> _stream;
   UInt32 _crc;
   UInt64 _size;
@@ -76,20 +85,22 @@ public:
   UInt32 GetCRC() const { return CRC_GET_DIGEST(_crc); }
   UInt64 GetSize() const { return _size; }
   
-  Z7_COM7F_IMF(Read(void *data, UInt32 size, UInt32 *processedSize))
-  {
-    UInt32 realProcessed = 0;
-    HRESULT result = _stream->Read(data, size, &realProcessed);
-    if (realProcessed > 0)
-    {
-      _crc = CrcUpdate(_crc, data, realProcessed);
-      _size += realProcessed;
-    }
-    if (processedSize)
-      *processedSize = realProcessed;
-    return result;
-  }
+  Z7_IFACE_COM7_IMP(ISequentialInStream)
 };
+
+Z7_COM7F_IMF(CCrcInStream::Read(void *data, UInt32 size, UInt32 *processedSize))
+{
+  UInt32 realProcessed = 0;
+  HRESULT result = _stream->Read(data, size, &realProcessed);
+  if (realProcessed > 0)
+  {
+    _crc = CrcUpdate(_crc, data, realProcessed);
+    _size += realProcessed;
+  }
+  if (processedSize)
+    *processedSize = realProcessed;
+  return result;
+}
 
 namespace NCompress {
 namespace NParallel {
@@ -353,7 +364,7 @@ HRESULT CParallelCompressor::CreateEncoder(ICompressCoder **encoder)
     
   // Create LZMA encoder by default
   CCreatedCoder cod;
-  RINOK(CreateCoder(
+  RINOK(CreateCoder_Id(
     EXTERNAL_CODECS_LOC_VARS
     _methodId, true, cod));
     
@@ -524,8 +535,7 @@ HRESULT CParallelCompressor::WriteJobToStream(CCompressionJob &job, ISequentialO
     return E_FAIL;
     
   // Write compressed data to output stream
-  UInt32 processed = 0;
-  return WriteStream(outStream, job.CompressedData, (size_t)job.OutSize, &processed);
+  return WriteStream(outStream, job.CompressedData, (size_t)job.OutSize);
 }
 
 void CParallelCompressor::PrepareCompressionMethod(NArchive::N7z::CCompressionMethodMode &method)
@@ -548,7 +558,7 @@ void CParallelCompressor::PrepareCompressionMethod(NArchive::N7z::CCompressionMe
   
   for (UInt32 i = 0; i < 2; i++)
   {
-    NArchive::N7z::CProp &prop = methodFull.Props.AddNew();
+    CProp &prop = methodFull.Props.AddNew();
     prop.Id = propIDs[i];
     prop.Value = propValues[i];
   }
@@ -628,8 +638,9 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
     db.AddFile(fileItem, fileItem2, job.Name);
     
     // Create folder for each file with encoder properties
-    CFolder folder;
-    CCoderInfo &coder = folder.Coders.AddNew();
+    CFolder &folder = db.Folders.AddNew();
+    folder.Coders.SetSize(1);
+    CCoderInfo &coder = folder.Coders[0];
     coder.MethodID = _methodId;
     coder.NumStreams = 1;
     // Copy encoder properties (required for decompression)
@@ -638,7 +649,6 @@ HRESULT CParallelCompressor::Create7zArchive(ISequentialOutStream *outStream,
       coder.Props.Alloc(job.EncoderProps.Size());
       memcpy(coder.Props, job.EncoderProps, job.EncoderProps.Size());
     }
-    db.Folders.Add(folder);
     
     db.PackSizes.Add(packSizes[idx]);
     
@@ -675,16 +685,18 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   
   // Handle multi-volume output for solid archives
   ISequentialOutStream *finalOutStream = outStream;
-  CMyComPtr<CMultiOutStream> multiStream;
+  CMultiOutStream *multiStreamSpec = NULL;
+  CMyComPtr<ISequentialOutStream> multiStream;
   
   if (_volumeSize > 0 && !_volumePrefix.IsEmpty())
   {
-    multiStream = new CMultiOutStream();
+    multiStreamSpec = new CMultiOutStream();
+    multiStream = multiStreamSpec;
     CRecordVector<UInt64> volumeSizes;
     volumeSizes.Add(_volumeSize);
-    multiStream->Init(volumeSizes);
-    multiStream->Prefix = us2fs(_volumePrefix);
-    multiStream->NeedDelete = false;
+    multiStreamSpec->Init(volumeSizes);
+    multiStreamSpec->Prefix = us2fs(_volumePrefix);
+    multiStreamSpec->NeedDelete = false;
     finalOutStream = multiStream;
   }
   
@@ -782,8 +794,9 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   }
   
   // Build database with single solid folder containing all files
-  CFolder folder;
-  CCoderInfo &coder = folder.Coders.AddNew();
+  CFolder &folder = db.Folders.AddNew();
+  folder.Coders.SetSize(1);
+  CCoderInfo &coder = folder.Coders[0];
   coder.MethodID = _methodId;
   coder.NumStreams = 1;
   if (encoderProps.Size() > 0)
@@ -792,7 +805,6 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
     memcpy(coder.Props, encoderProps, encoderProps.Size());
   }
   
-  db.Folders.Add(folder);
   db.PackSizes.Add(compressedSize);
   db.NumUnpackStreamsVector.Add(numItems);  // Multiple files in one folder = solid
   
@@ -848,10 +860,10 @@ HRESULT CParallelCompressor::Create7zSolidArchive(ISequentialOutStream *outStrea
   outArchive.Close();
   
   // Finalize multi-volume if used
-  if (multiStream)
+  if (multiStreamSpec)
   {
     unsigned numVolumes = 0;
-    RINOK(multiStream->FinalFlush_and_CloseFiles(numVolumes))
+    RINOK(multiStreamSpec->FinalFlush_and_CloseFiles(numVolumes))
   }
   
   return S_OK;
@@ -951,26 +963,28 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   
   // Handle multi-volume output
   ISequentialOutStream *finalOutStream = outStream;
-  CMyComPtr<CMultiOutStream> multiStream;
+  CMultiOutStream *multiStreamSpec = NULL;
+  CMyComPtr<ISequentialOutStream> multiStream;
   
   if (_volumeSize > 0 && !_volumePrefix.IsEmpty())
   {
-    multiStream = new CMultiOutStream();
+    multiStreamSpec = new CMultiOutStream();
+    multiStream = multiStreamSpec;
     CRecordVector<UInt64> volumeSizes;
     volumeSizes.Add(_volumeSize);  // All volumes same size
-    multiStream->Init(volumeSizes);
-    multiStream->Prefix = us2fs(_volumePrefix);
-    multiStream->NeedDelete = false;
+    multiStreamSpec->Init(volumeSizes);
+    multiStreamSpec->Prefix = us2fs(_volumePrefix);
+    multiStreamSpec->NeedDelete = false;
     finalOutStream = multiStream;
   }
   
   HRESULT archiveResult = Create7zArchive(finalOutStream, _jobs);
   
   // Finalize multi-volume if used
-  if (multiStream)
+  if (multiStreamSpec)
   {
     unsigned numVolumes = 0;
-    HRESULT volumeResult = multiStream->FinalFlush_and_CloseFiles(numVolumes);
+    HRESULT volumeResult = multiStreamSpec->FinalFlush_and_CloseFiles(numVolumes);
     if (archiveResult == S_OK)
       archiveResult = volumeResult;
   }

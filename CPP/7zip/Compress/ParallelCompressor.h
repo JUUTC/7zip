@@ -77,6 +77,8 @@ Z7_class_final(CParallelCompressor) :
   public ICompressGetInStreamProcessedSize,
   public CMyUnknownImp
 {
+  friend class CCompressWorker;
+  
   Z7_COM_UNKNOWN_IMP_6(
       IParallelCompressor,
       ICompressCoder,
