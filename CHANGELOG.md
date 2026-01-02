@@ -19,7 +19,7 @@
 - Non-solid mode only (solid blocks conflict with parallelism)
 - Encryption not yet integrated
 - Multi-volume archives not yet supported
-- CRC calculation structure present but not fully implemented
+- CRC calculation structure present but not fully implemented (may affect data integrity verification)
 
 ### Performance
 - 10-30x speedup for processing millions of small files
