@@ -140,6 +140,19 @@ HRESULT CCompressWorker::ProcessJob()
   return Compressor->CompressJob(*CurrentJob, NULL);
 }
 
+// Get current time in milliseconds
+static UInt64 GetCurrentTimeMs()
+{
+#ifdef _WIN32
+  return GetTickCount64();
+#else
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
+    return 0;  // Return 0 on error
+  return (UInt64)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+#endif
+}
+
 CParallelCompressor::CParallelCompressor()
   : _numThreads(1)
   , _compressionLevel(5)
@@ -152,6 +165,11 @@ CParallelCompressor::CParallelCompressor()
   , _itemsFailed(0)
   , _totalInSize(0)
   , _totalOutSize(0)
+  , _itemsTotal(0)
+  , _activeThreads(0)
+  , _startTimeMs(0)
+  , _lastProgressTimeMs(0)
+  , _progressIntervalMs(100)
 {
   // Initialize CRC tables
   CrcGenerateTable();
@@ -444,6 +462,7 @@ CCompressionJob* CParallelCompressor::GetNextJob()
     return NULL;
   CCompressionJob *job = &_jobs[_nextJobIndex];
   _nextJobIndex++;
+  _activeThreads++;  // Track active compression threads
   return job;
 }
 
@@ -455,6 +474,8 @@ void CParallelCompressor::NotifyJobComplete(CCompressionJob *job)
     NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
     job->Completed = true;
     _itemsCompleted++;
+    if (_activeThreads > 0)
+      _activeThreads--;  // Track active compression threads
     if (job->Result != S_OK)
       _itemsFailed++;
     else
@@ -642,6 +663,10 @@ Z7_COM7F_IMF(CParallelCompressor::CompressMultiple(
   _itemsFailed = 0;
   _totalInSize = 0;
   _totalOutSize = 0;
+  _itemsTotal = numItems;
+  _activeThreads = 0;
+  _startTimeMs = GetCurrentTimeMs();
+  _lastProgressTimeMs = _startTimeMs;
   _completeEvent.Reset();
   
   _jobs.Clear();
@@ -774,6 +799,71 @@ Z7_COM7F_IMF(CParallelCompressor::GetStatistics(
     *totalInSize = _totalInSize;
   if (totalOutSize)
     *totalOutSize = _totalOutSize;
+  return S_OK;
+}
+
+void CParallelCompressor::UpdateDetailedStats(CParallelStatistics &stats)
+{
+  NWindows::NSynchronization::CCriticalSectionLock lock(_criticalSection);
+  
+  UInt64 currentTimeMs = GetCurrentTimeMs();
+  UInt64 elapsedMs = currentTimeMs - _startTimeMs;
+  
+  stats.ItemsTotal = _itemsTotal;
+  stats.ItemsCompleted = _itemsCompleted;
+  stats.ItemsFailed = _itemsFailed;
+  stats.ItemsInProgress = _activeThreads;
+  stats.TotalInSize = _totalInSize;
+  stats.TotalOutSize = _totalOutSize;
+  stats.ElapsedTimeMs = elapsedMs;
+  stats.ActiveThreads = _activeThreads;
+  
+  // Calculate throughput (bytes per second) with overflow protection
+  if (elapsedMs > 0)
+  {
+    // Use division first to avoid overflow when totalInSize is large
+    stats.BytesPerSecond = (_totalInSize / elapsedMs) * 1000 + 
+                           ((_totalInSize % elapsedMs) * 1000) / elapsedMs;
+    // Files per second * 100 for precision
+    stats.FilesPerSecond = ((UInt64)_itemsCompleted * 100000) / elapsedMs;
+  }
+  else
+  {
+    stats.BytesPerSecond = 0;
+    stats.FilesPerSecond = 0;
+  }
+  
+  // Calculate compression ratio * 100
+  if (_totalInSize > 0)
+    stats.CompressionRatioX100 = (UInt32)((_totalOutSize * 100) / _totalInSize);
+  else
+    stats.CompressionRatioX100 = 100;
+  
+  // Estimate time remaining with overflow protection
+  if (_itemsCompleted > 0 && _itemsCompleted < _itemsTotal)
+  {
+    UInt32 itemsRemaining = _itemsTotal - _itemsCompleted;
+    // Use total elapsed time and remaining items to estimate, avoiding overflow
+    stats.EstimatedTimeRemainingMs = (elapsedMs * (UInt64)itemsRemaining) / _itemsCompleted;
+  }
+  else
+  {
+    stats.EstimatedTimeRemainingMs = 0;
+  }
+}
+
+Z7_COM7F_IMF(CParallelCompressor::GetDetailedStatistics(CParallelStatistics *stats))
+{
+  if (!stats)
+    return E_POINTER;
+  
+  UpdateDetailedStats(*stats);
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CParallelCompressor::SetProgressUpdateInterval(UInt32 intervalMs))
+{
+  _progressIntervalMs = intervalMs > 0 ? intervalMs : 100;
   return S_OK;
 }
 

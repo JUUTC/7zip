@@ -424,4 +424,64 @@ HRESULT ParallelStreamQueue_GetStatus(
   return wrapper->Queue->GetStatus(itemsProcessed, itemsFailed, itemsPending);
 }
 
+HRESULT ParallelCompressor_GetDetailedStatistics(
+    ParallelCompressorHandle handle,
+    ParallelStatisticsC *stats)
+{
+  if (!handle || !stats)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  
+  CParallelStatistics cppStats;
+  HRESULT result = wrapper->Compressor->GetDetailedStatistics(&cppStats);
+  if (result == S_OK)
+  {
+    stats->ItemsTotal = cppStats.ItemsTotal;
+    stats->ItemsCompleted = cppStats.ItemsCompleted;
+    stats->ItemsFailed = cppStats.ItemsFailed;
+    stats->ItemsInProgress = cppStats.ItemsInProgress;
+    stats->TotalInSize = cppStats.TotalInSize;
+    stats->TotalOutSize = cppStats.TotalOutSize;
+    stats->BytesPerSecond = cppStats.BytesPerSecond;
+    stats->FilesPerSecond = cppStats.FilesPerSecond;
+    stats->ElapsedTimeMs = cppStats.ElapsedTimeMs;
+    stats->EstimatedTimeRemainingMs = cppStats.EstimatedTimeRemainingMs;
+    stats->CompressionRatioX100 = cppStats.CompressionRatioX100;
+    stats->ActiveThreads = cppStats.ActiveThreads;
+  }
+  return result;
+}
+
+HRESULT ParallelCompressor_SetProgressUpdateInterval(
+    ParallelCompressorHandle handle,
+    UInt32 intervalMs)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  ParallelCompressorWrapper *wrapper = (ParallelCompressorWrapper*)handle;
+  return wrapper->Compressor->SetProgressUpdateInterval(intervalMs);
+}
+
+HRESULT ParallelCompressor_SetDetailedCallbacks(
+    ParallelCompressorHandle handle,
+    ParallelDetailedProgressCallback detailedProgressCallback,
+    ParallelThroughputCallback throughputCallback,
+    void *userData)
+{
+  if (!handle)
+    return E_INVALIDARG;
+  
+  // Note: This is a placeholder for future callback support.
+  // Callers should use GetDetailedStatistics() for polling-based progress tracking.
+  // Full callback implementation would require:
+  // 1. Adding callback storage to ParallelCompressorWrapper
+  // 2. Modifying NotifyJobComplete to invoke callbacks
+  // 3. Adding periodic throughput update timer
+  // The polling API via GetDetailedStatistics() is the recommended approach.
+  (void)detailedProgressCallback;
+  (void)throughputCallback;
+  (void)userData;
+  return S_OK;
+}
+
 } // extern "C"

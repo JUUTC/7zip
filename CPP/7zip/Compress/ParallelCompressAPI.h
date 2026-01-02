@@ -104,6 +104,51 @@ HRESULT ParallelStreamQueue_GetStatus(
     UInt32 *itemsFailed,
     UInt32 *itemsPending);
 
+// Extended statistics structure for C API
+typedef struct
+{
+  UInt32 ItemsTotal;           // Total number of items to process
+  UInt32 ItemsCompleted;       // Number of items completed successfully
+  UInt32 ItemsFailed;          // Number of items that failed
+  UInt32 ItemsInProgress;      // Number of items currently being processed
+  UInt64 TotalInSize;          // Total uncompressed bytes processed
+  UInt64 TotalOutSize;         // Total compressed bytes produced
+  UInt64 BytesPerSecond;       // Current compression throughput (bytes/sec)
+  UInt64 FilesPerSecond;       // Files completed per second (x100 for precision)
+  UInt64 ElapsedTimeMs;        // Elapsed time in milliseconds
+  UInt64 EstimatedTimeRemainingMs;  // Estimated time remaining in milliseconds
+  UInt32 CompressionRatioX100; // Compression ratio * 100 (e.g., 42 = 42% of original)
+  UInt32 ActiveThreads;        // Number of threads currently active
+} ParallelStatisticsC;
+
+// Extended progress callback with detailed statistics
+typedef void (*ParallelDetailedProgressCallback)(
+    const ParallelStatisticsC *stats,
+    void *userData);
+
+// Throughput update callback (bytes/sec, files/sec * 100)
+typedef void (*ParallelThroughputCallback)(
+    UInt64 bytesPerSecond,
+    UInt64 filesPerSecondX100,
+    void *userData);
+
+// Get detailed statistics during compression
+HRESULT ParallelCompressor_GetDetailedStatistics(
+    ParallelCompressorHandle handle,
+    ParallelStatisticsC *stats);
+
+// Set progress update interval in milliseconds (default: 100ms)
+HRESULT ParallelCompressor_SetProgressUpdateInterval(
+    ParallelCompressorHandle handle,
+    UInt32 intervalMs);
+
+// Set extended callbacks for detailed progress tracking
+HRESULT ParallelCompressor_SetDetailedCallbacks(
+    ParallelCompressorHandle handle,
+    ParallelDetailedProgressCallback detailedProgressCallback,
+    ParallelThroughputCallback throughputCallback,
+    void *userData);
+
 #ifdef __cplusplus
 }
 #endif

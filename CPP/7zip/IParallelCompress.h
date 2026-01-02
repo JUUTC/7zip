@@ -18,6 +18,23 @@ struct CParallelInputItem
   void *UserData;
 };
 
+// Extended statistics structure for detailed progress tracking
+struct CParallelStatistics
+{
+  UInt32 ItemsTotal;           // Total number of items to process
+  UInt32 ItemsCompleted;       // Number of items completed successfully
+  UInt32 ItemsFailed;          // Number of items that failed
+  UInt32 ItemsInProgress;      // Number of items currently being processed
+  UInt64 TotalInSize;          // Total uncompressed bytes processed
+  UInt64 TotalOutSize;         // Total compressed bytes produced
+  UInt64 BytesPerSecond;       // Current compression throughput (bytes/sec)
+  UInt64 FilesPerSecond;       // Files completed per second (x100 for precision)
+  UInt64 ElapsedTimeMs;        // Elapsed time in milliseconds
+  UInt64 EstimatedTimeRemainingMs;  // Estimated time remaining in milliseconds
+  UInt32 CompressionRatioX100; // Compression ratio * 100 (e.g., 42 = 42% of original)
+  UInt32 ActiveThreads;        // Number of threads currently active
+};
+
 #define Z7_IFACEM_IParallelCompressCallback(x) \
   x(OnItemStart(UInt32 itemIndex, const wchar_t *name)) \
   x(OnItemProgress(UInt32 itemIndex, UInt64 inSize, UInt64 outSize)) \
@@ -27,6 +44,13 @@ struct CParallelInputItem
   x(GetNextItems(UInt32 currentIndex, UInt32 lookAheadCount, CParallelInputItem *items, UInt32 *itemsReturned))
 
 Z7_IFACE_CONSTR_CODER(IParallelCompressCallback, 0xA1)
+
+// Extended callback interface with detailed statistics
+#define Z7_IFACEM_IParallelCompressCallback2(x) \
+  x(OnProgressWithStats(const CParallelStatistics *stats)) \
+  x(OnThroughputUpdate(UInt64 bytesPerSecond, UInt64 filesPerSecondX100))
+
+Z7_IFACE_CONSTR_CODER(IParallelCompressCallback2, 0xA4)
 
 #define Z7_IFACEM_IParallelCompressor(x) \
   x(SetCallback(IParallelCompressCallback *callback)) \
@@ -40,7 +64,9 @@ Z7_IFACE_CONSTR_CODER(IParallelCompressCallback, 0xA1)
   x(CompressMultiple(CParallelInputItem *items, UInt32 numItems, \
       ISequentialOutStream *outStream, ICompressProgressInfo *progress)) \
   x(GetStatistics(UInt32 *itemsCompleted, UInt32 *itemsFailed, \
-      UInt64 *totalInSize, UInt64 *totalOutSize))
+      UInt64 *totalInSize, UInt64 *totalOutSize)) \
+  x(GetDetailedStatistics(CParallelStatistics *stats)) \
+  x(SetProgressUpdateInterval(UInt32 intervalMs))
 
 Z7_IFACE_CONSTR_CODER(IParallelCompressor, 0xA2)
 
