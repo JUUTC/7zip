@@ -1,1 +1,11 @@
 _codeql*
+# Build artifacts
+*/_o/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+# Test generated files
+test_*.7z
+test_*.txt
