@@ -103,6 +103,24 @@ else
     echo "⚠ Integration test executable not found, skipping..."
 fi
 
+# Run Security tests
+echo ""
+echo "============================================="
+echo "Running Security Tests"
+echo "============================================="
+if [ -f ParallelSecurityTest ]; then
+    ./ParallelSecurityTest
+    SEC_RESULT=$?
+    if [ $SEC_RESULT -eq 0 ]; then
+        echo "✓ Security tests PASSED"
+    else
+        echo "✗ Security tests FAILED"
+        exit 1
+    fi
+else
+    echo "⚠ Security test executable not found, skipping..."
+fi
+
 # Test with 7z command if available
 echo ""
 echo "============================================="
