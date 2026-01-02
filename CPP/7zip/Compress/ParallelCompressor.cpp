@@ -995,7 +995,7 @@ Z7_COM7F_IMF(CParallelCompressor::SetCoderProperties(
   _properties.Clear();
   for (UInt32 i = 0; i < numProps; i++)
   {
-    CProperty &prop = _properties.AddNew();
+    CProp &prop = _properties.AddNew();
     prop.Id = propIDs[i];
     if (props[i].vt == VT_UI4)
       prop.Value = props[i].ulVal;
