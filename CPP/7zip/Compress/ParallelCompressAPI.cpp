@@ -9,6 +9,8 @@
 #include "../Common/FileStreams.h"
 #include "../Common/StreamObjects.h"
 
+#include <stdlib.h>  // for malloc
+
 using namespace NCompress::NParallel;
 
 // Internal callback wrapper
@@ -99,13 +101,24 @@ Z7_COM7F_IMF(CCallbackWrapper::GetNextItems(UInt32 currentIndex, UInt32 lookAhea
 // Internal wrapper structure
 struct ParallelCompressorWrapper
 {
-  CMyComPtr<CParallelCompressor> Compressor;
-  CMyComPtr<CCallbackWrapper> Callback;
+  CParallelCompressor* Compressor;  // Raw pointer to avoid AddRef/Release issues
+  CCallbackWrapper* Callback;       // Raw pointer
+  
+  ParallelCompressorWrapper() : Compressor(NULL), Callback(NULL) {}
+  ~ParallelCompressorWrapper() {
+    if (Compressor) delete Compressor;
+    if (Callback) delete Callback;
+  }
 };
 
 struct ParallelStreamQueueWrapper
 {
-  CMyComPtr<CParallelStreamQueue> Queue;
+  CParallelStreamQueue* Queue;  // Raw pointer
+  
+  ParallelStreamQueueWrapper() : Queue(NULL) {}
+  ~ParallelStreamQueueWrapper() {
+    if (Queue) delete Queue;
+  }
 };
 
 extern "C" {
@@ -246,7 +259,8 @@ HRESULT ParallelCompressor_CompressMultiple(
   COutFileStream *outStreamSpec = new COutFileStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
-  if (!outStreamSpec->Create(outputPath, false))
+  FString outputPathFs = us2fs(outputPath);
+  if (!outStreamSpec->Create_ALWAYS(outputPathFs))
     return E_FAIL;
   
   // Convert C items to C++ items
@@ -272,7 +286,8 @@ HRESULT ParallelCompressor_CompressMultiple(
       CInFileStream *streamSpec = new CInFileStream;
       CMyComPtr<ISequentialInStream> stream = streamSpec;
       
-      if (!streamSpec->Open(items[i].FilePath))
+      FString filePathFs = us2fs(items[i].FilePath);
+      if (!streamSpec->Open(filePathFs))
         return E_FAIL;
         
       UInt64 fileSize = 0;
@@ -329,7 +344,8 @@ HRESULT ParallelCompressor_CompressMultipleToMemory(
       CInFileStream *streamSpec = new CInFileStream;
       CMyComPtr<ISequentialInStream> stream = streamSpec;
       
-      if (!streamSpec->Open(items[i].FilePath))
+      FString filePathFs = us2fs(items[i].FilePath);
+      if (!streamSpec->Open(filePathFs))
         return E_FAIL;
         
       UInt64 fileSize = 0;
@@ -425,7 +441,8 @@ HRESULT ParallelStreamQueue_StartProcessing(
   COutFileStream *outStreamSpec = new COutFileStream;
   CMyComPtr<ISequentialOutStream> outStream = outStreamSpec;
   
-  if (!outStreamSpec->Create(outputPath, false))
+  FString outputPathFs = us2fs(outputPath);
+  if (!outStreamSpec->Create_ALWAYS(outputPathFs))
     return E_FAIL;
   
   return wrapper->Queue->StartProcessing(outStream);

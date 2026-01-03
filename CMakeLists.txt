@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build options
 option(BUILD_TESTS "Build test suite" ON)
-option(BUILD_EXAMPLES "Build example programs" ON)
+option(BUILD_EXAMPLES "Build example programs" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(ENABLE_AZURE_SUPPORT "Enable Azure Blob Storage support" OFF)
 option(ENABLE_AWS_SUPPORT "Enable AWS S3 support" OFF)
@@ -97,6 +97,7 @@ set(WINDOWS_SOURCES
     CPP/Windows/PropVariant.cpp
     CPP/Windows/Synchronization.cpp
     CPP/Windows/System.cpp
+    CPP/Windows/TimeUtils.cpp
     # Note: Thread.h is header-only, wraps C/Threads.c
 )
 
@@ -113,7 +114,8 @@ set(COMPRESS_COMMON_SOURCES
     CPP/7zip/Common/LimitedStreams.cpp
     CPP/7zip/Common/MethodProps.cpp
     CPP/7zip/Common/CreateCoder.cpp
-    # Note: RegisterCodec.h is header-only
+    CPP/7zip/Common/FilterCoder.cpp
+    # Note: RegisterCodec.h and RegisterCodec.cpp don't exist as separate files
 )
 
 # ============================================================================

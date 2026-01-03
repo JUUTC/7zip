@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <wchar.h>
 
 // Example callback for progress
 void OnProgress(UInt32 itemIndex, UInt64 inSize, UInt64 outSize, void *userData)
@@ -52,7 +53,11 @@ int Example_CompressMultipleBuffers()
     
     wchar_t name[256];
     swprintf(name, 256, L"Buffer_%d", i);
+#ifdef _WIN32
     items[i].Name = _wcsdup(name);
+#else
+    items[i].Name = wcsdup(name);
+#endif
     items[i].Size = dataSize;
     items[i].UserData = NULL;
   }
