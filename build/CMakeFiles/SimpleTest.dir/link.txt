@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/SimpleTest.dir/link.d CMakeFiles/SimpleTest.dir/CPP/7zip/Compress/SimpleTest.cpp.o -o SimpleTest  lib7zip-parallel.a -lrt

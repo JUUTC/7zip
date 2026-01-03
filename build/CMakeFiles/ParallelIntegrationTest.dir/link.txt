@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelIntegrationTest.dir/link.d CMakeFiles/ParallelIntegrationTest.dir/CPP/7zip/Compress/ParallelIntegrationTest.cpp.o -o ParallelIntegrationTest  lib7zip-parallel.a -lrt
