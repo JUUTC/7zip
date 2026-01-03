@@ -5,6 +5,8 @@
 
 Official 7-Zip website: [7-zip.org](https://7-zip.org)
 
+**⚡ All binaries are built with parallel compression enabled for maximum performance.**
+
 ## Overview
 
 This repository extends the standard 7-Zip compression library with a parallel compression feature that enables concurrent processing of multiple input streams. The implementation maintains full compatibility with standard 7z archive format while providing significant performance improvements for scenarios involving many files.
@@ -251,6 +253,13 @@ The implementation includes comprehensive test coverage:
 - **End-to-End Tests**: Full workflow with 7z extraction verification
 
 Run all tests with: `./run_tests.sh`
+
+## Documentation
+
+- **[Developer Guide](DOC/DEVELOPER_GUIDE.md)** - Complete developer documentation (building, releases, architecture)
+- **[Build System](DOC/BUILD_SYSTEM.md)** - Detailed build instructions for all platforms
+- **[Azure Integration](DOC/AZURE_INTEGRATION.md)** - Cloud storage integration guide
+- **[Workflows](/.github/workflows/README.md)** - CI/CD pipeline documentation
 
 ## Contributing
 
