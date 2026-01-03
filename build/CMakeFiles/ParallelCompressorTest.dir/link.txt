@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelCompressorTest.dir/link.d CMakeFiles/ParallelCompressorTest.dir/CPP/7zip/Compress/ParallelCompressorTest.cpp.o -o ParallelCompressorTest  lib7zip-parallel.a -lrt

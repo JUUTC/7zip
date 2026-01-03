@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelSecurityTest.dir/link.d CMakeFiles/ParallelSecurityTest.dir/CPP/7zip/Compress/ParallelSecurityTest.cpp.o -o ParallelSecurityTest  lib7zip-parallel.a -lrt

@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelFeatureParityTest.dir/link.d CMakeFiles/ParallelFeatureParityTest.dir/CPP/7zip/Compress/ParallelFeatureParityTest.cpp.o -o ParallelFeatureParityTest  lib7zip-parallel.a -lrt

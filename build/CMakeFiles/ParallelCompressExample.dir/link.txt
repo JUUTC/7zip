@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelCompressExample.dir/link.d CMakeFiles/ParallelCompressExample.dir/CPP/7zip/Compress/ParallelCompressExample.cpp.o -o ParallelCompressExample  lib7zip-parallel.a -lrt

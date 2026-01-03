@@ -1,0 +1,17 @@
+/home/runner/work/7zip/7zip/build/CMakeFiles/7zip-parallel.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/SimpleTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelCompressExample.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelCompressorTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelCompressorValidation.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelE2ETest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelFeatureParityTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelIntegrationTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelSolidMultiVolumeTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/ParallelSecurityTest.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/test.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/edit_cache.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/rebuild_cache.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/list_install_components.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/install.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/install/local.dir
+/home/runner/work/7zip/7zip/build/CMakeFiles/install/strip.dir

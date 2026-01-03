@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/ParallelSolidMultiVolumeTest.dir/link.d CMakeFiles/ParallelSolidMultiVolumeTest.dir/CPP/7zip/Compress/ParallelSolidMultiVolumeTest.cpp.o -o ParallelSolidMultiVolumeTest  lib7zip-parallel.a -lrt
