@@ -6,6 +6,7 @@ _codeql*
 *.so
 *.dll
 *.exe
+build/
 # Test generated files
 test_*.7z
 test_*.txt
