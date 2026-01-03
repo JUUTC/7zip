@@ -1,5 +1,8 @@
 # 7-Zip with Parallel Compression
 
+[![CI Status](https://github.com/JUUTC/7zip/workflows/CI%20-%20Build%20and%20Test/badge.svg)](https://github.com/JUUTC/7zip/actions/workflows/ci.yml)
+[![Release](https://github.com/JUUTC/7zip/workflows/Build%20and%20Release/badge.svg)](https://github.com/JUUTC/7zip/actions/workflows/build-release.yml)
+
 Official 7-Zip website: [7-zip.org](https://7-zip.org)
 
 ## Overview
@@ -28,21 +31,42 @@ This repository extends the standard 7-Zip compression library with a parallel c
 
 ## Installation & Building
 
-### Prerequisites
+### Download Pre-built Binaries
+
+Pre-built binaries for all platforms are available from [GitHub Releases](https://github.com/JUUTC/7zip/releases):
+
+- **Linux x86_64**: `7zip-parallel-linux-x64-{version}.tar.gz`
+- **Windows x64**: `7zip-parallel-windows-x64-{version}.zip`
+- **macOS x86_64**: `7zip-parallel-macos-x64-{version}.tar.gz`
+- **macOS ARM64** (M1/M2): `7zip-parallel-macos-arm64-{version}.tar.gz`
+
+Each package includes the static library, headers, examples, and documentation.
+
+### Build from Source
+
+#### Prerequisites
 - GCC 4.8+ or compatible C++ compiler
-- Make
+- Make or CMake
 - Standard C/C++ development tools
 
-### Build Instructions
+#### Build Instructions (Make)
 ```bash
 cd CPP/7zip/Compress
 make -f makefile.test clean
 make -f makefile.test
 ```
 
+#### Build Instructions (CMake - Cross-platform)
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+cmake --build . --config Release
+```
+
 This builds:
-- Core library (`ParallelCompressor.o`, `ParallelCompressAPI.o`)
+- Core library (`lib7zip-parallel.a` or `7zip-parallel.lib`)
 - Test executables for validation
+- Example programs
 
 ### Running Tests
 ```bash
@@ -55,6 +79,15 @@ This builds:
 ./ParallelFeatureParityTest    # Feature validation
 ./ParallelIntegrationTest      # Integration tests
 ```
+
+### Continuous Integration
+
+Automated builds and tests run on every commit via GitHub Actions:
+- **Linux**: GCC and Clang (Debug + Release)
+- **Windows**: MSVC x86 and x64 (Debug + Release)
+- **macOS**: x86_64 and ARM64 (Debug + Release)
+
+See [.github/workflows/README.md](.github/workflows/README.md) for details.
 
 ## Usage
 

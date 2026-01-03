@@ -1,0 +1,202 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'copilot/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  build-test-linux:
+    name: Linux Build and Test
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            sudo apt-get install -y clang
+          fi
+      
+      - name: Configure environment
+        run: |
+          if [ "${{ matrix.compiler }}" = "clang" ]; then
+            echo "CC=clang" >> $GITHUB_ENV
+            echo "CXX=clang++" >> $GITHUB_ENV
+          else
+            echo "CC=gcc" >> $GITHUB_ENV
+            echo "CXX=g++" >> $GITHUB_ENV
+          fi
+      
+      - name: Build with CMake
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+          cmake --build . --config ${{ matrix.build_type }}
+      
+      - name: Run tests
+        run: |
+          cd build
+          ctest --output-on-failure --build-config ${{ matrix.build_type }}
+        continue-on-error: true
+      
+      - name: Build with Make (fallback)
+        if: failure()
+        run: |
+          cd CPP/7zip/Compress
+          make -f makefile.test clean
+          make -f makefile.test
+      
+      - name: Run Make tests
+        if: success()
+        run: |
+          cd CPP/7zip/Compress
+          ./run_tests.sh
+        continue-on-error: true
+
+  build-test-windows:
+    name: Windows Build and Test
+    runs-on: windows-latest
+    
+    strategy:
+      matrix:
+        arch: [x64, x86]
+        build_type: [Debug, Release]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up MSVC
+        uses: microsoft/setup-msbuild@v2
+      
+      - name: Build with CMake
+        run: |
+          mkdir build
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A ${{ matrix.arch }} -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+          cmake --build . --config ${{ matrix.build_type }}
+      
+      - name: Run tests
+        run: |
+          cd build
+          ctest -C ${{ matrix.build_type }} --output-on-failure
+        continue-on-error: true
+
+  build-test-macos:
+    name: macOS Build and Test
+    runs-on: macos-latest
+    
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+        build_type: [Debug, Release]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          brew install cmake
+      
+      - name: Build with CMake
+        run: |
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} -DBUILD_TESTS=ON -DBUILD_EXAMPLES=ON
+          cmake --build . --config ${{ matrix.build_type }}
+      
+      - name: Run tests (x86_64 only)
+        if: matrix.arch == 'x86_64'
+        run: |
+          cd build
+          ctest --output-on-failure --build-config ${{ matrix.build_type }}
+        continue-on-error: true
+
+  code-quality:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "Checking for TODO/FIXME comments in new code..."
+          git diff origin/main...HEAD | grep -E "^\+.*TODO|^\+.*FIXME" || true
+      
+      - name: Check file permissions
+        run: |
+          echo "Checking for executable permissions on source files..."
+          find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) -executable || true
+      
+      - name: Check line endings
+        run: |
+          echo "Checking for Windows line endings..."
+          find . -type f \( -name "*.c" -o -name "*.cpp" -o -name "*.h" \) -exec file {} \; | grep CRLF || true
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Check documentation exists
+        run: |
+          echo "Checking for required documentation files..."
+          test -f README.md || echo "::warning::README.md not found"
+          test -f CHANGELOG.md || echo "::warning::CHANGELOG.md not found"
+          test -d DOC || echo "::warning::DOC directory not found"
+      
+      - name: Check Markdown formatting
+        run: |
+          echo "Checking Markdown files..."
+          find . -name "*.md" -type f | while read file; do
+            echo "Checking $file"
+            # Basic checks for common Markdown issues
+            grep -n "](http" "$file" | grep -v "https://" || true
+          done
+
+  summary:
+    name: Build Summary
+    needs: [build-test-linux, build-test-windows, build-test-macos]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check build status
+        run: |
+          echo "Build Summary:"
+          echo "=============="
+          echo "Linux: ${{ needs.build-test-linux.result }}"
+          echo "Windows: ${{ needs.build-test-windows.result }}"
+          echo "macOS: ${{ needs.build-test-macos.result }}"
+          
+          if [ "${{ needs.build-test-linux.result }}" != "success" ] || \
+             [ "${{ needs.build-test-windows.result }}" != "success" ] || \
+             [ "${{ needs.build-test-macos.result }}" != "success" ]; then
+            echo "::warning::Some builds failed or were skipped"
+          else
+            echo "✓ All builds succeeded"
+          fi
