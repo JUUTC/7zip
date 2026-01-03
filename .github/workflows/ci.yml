@@ -77,7 +77,7 @@ jobs:
     
     strategy:
       matrix:
-        arch: [x64, x86]
+        arch: [x64, Win32]
         build_type: [Debug, Release]
     
     steps:
