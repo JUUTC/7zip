@@ -14,7 +14,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Build options
 option(BUILD_TESTS "Build test suite" ON)
-option(BUILD_EXAMPLES "Build example programs" OFF)
+option(BUILD_EXAMPLES "Build example programs" ON)
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(ENABLE_AZURE_SUPPORT "Enable Azure Blob Storage support" OFF)
 option(ENABLE_AWS_SUPPORT "Enable AWS S3 support" OFF)
@@ -115,7 +115,8 @@ set(COMPRESS_COMMON_SOURCES
     CPP/7zip/Common/MethodProps.cpp
     CPP/7zip/Common/CreateCoder.cpp
     CPP/7zip/Common/FilterCoder.cpp
-    # Note: RegisterCodec.h and RegisterCodec.cpp don't exist as separate files
+    CPP/7zip/Common/CoderGuids.cpp
+    # Note: CoderGuids.cpp defines IIDs for codec interfaces
 )
 
 # ============================================================================
@@ -213,19 +214,21 @@ install(DIRECTORY CPP/7zip/
 if(BUILD_EXAMPLES)
     message(STATUS "Building examples")
     
-    # Simple example
+    # Simple test program - basic validation
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/CPP/7zip/Compress/SimpleTest.cpp)
         add_executable(SimpleTest CPP/7zip/Compress/SimpleTest.cpp)
         target_link_libraries(SimpleTest 7zip-parallel)
         target_include_directories(SimpleTest PRIVATE ${COMMON_INCLUDES})
     endif()
     
-    # Parallel compress example
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/CPP/7zip/Compress/ParallelCompressExample.cpp)
-        add_executable(ParallelCompressExample CPP/7zip/Compress/ParallelCompressExample.cpp)
-        target_link_libraries(ParallelCompressExample 7zip-parallel)
-        target_include_directories(ParallelCompressExample PRIVATE ${COMMON_INCLUDES})
-    endif()
+    # Parallel compress example - requires additional archive handling code
+    # Disabled due to missing dependencies: CMultiOutStream, CArchiveDatabaseOut, IID_IParallelCompressor
+    # These would require including the full 7z archive handler code
+    # if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/CPP/7zip/Compress/ParallelCompressExample.cpp)
+    #     add_executable(ParallelCompressExample CPP/7zip/Compress/ParallelCompressExample.cpp)
+    #     target_link_libraries(ParallelCompressExample 7zip-parallel)
+    #     target_include_directories(ParallelCompressExample PRIVATE ${COMMON_INCLUDES})
+    # endif()
 endif()
 
 # ============================================================================

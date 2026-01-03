@@ -30,7 +30,7 @@ jobs:
           mkdir build
           cd build
           # Build with parallel compression enabled (included in library sources)
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build . --config Release
           echo "✓ Parallel compression library built successfully"
       
@@ -84,7 +84,7 @@ jobs:
           mkdir build
           cd build
           # Build with parallel compression enabled (included in library sources)
-          cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
+          cmake .. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build . --config Release
           echo "Parallel compression library built successfully"
       
@@ -142,7 +142,7 @@ jobs:
           mkdir build-x64
           cd build-x64
           # Build with parallel compression enabled (included in library sources)
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=x86_64 -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build . --config Release
           echo "✓ Parallel compression library built for x86_64"
       
@@ -151,7 +151,7 @@ jobs:
           mkdir build-arm64
           cd build-arm64
           # Build with parallel compression enabled (included in library sources)
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=OFF
+          cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
           cmake --build . --config Release
           echo "✓ Parallel compression library built for ARM64"
       
